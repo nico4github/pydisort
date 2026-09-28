@@ -17,7 +17,7 @@ template <int FastFluxNstr>
 void launch_disort_cuda(at::TensorIterator& iter, int upward,
                         disort_state ds0, double* d_wvnmlo,
                         double* d_wvnmhi, double* d_utau, double* d_umu,
-                        double* d_phi, size_t work_size,
+                        double* d_phi, double* d_zd, size_t work_size,
                         at::Tensor* cuda_workspace) {
   AT_DISPATCH_FLOATING_TYPES(iter.dtype(), "call_disort_cuda", [&] {
     int nprop = (int)at::native::ensure_nonempty_size(iter.input(0), -1);
@@ -57,6 +57,9 @@ void launch_disort_cuda(at::TensorIterator& iter, int upward,
           if (d.flag.usrang) {
             for (int j = 0; j < d.numu; ++j) d.umu[j] = d_umu[j];
             for (int j = 0; j < d.nphi; ++j) d.phi[j] = d_phi[j];
+          }
+          if (d.flag.spher) {
+            for (int j = 0; j <= d.nlyr; ++j) d.zd[j] = d_zd[j];
           }
 
           disort_impl<FastFluxNstr>(out, prop, umu0, phi0, fbeam, albedo,
@@ -110,6 +113,7 @@ void call_disort_cuda(at::TensorIterator& iter, int upward, bool force_general,
       ds0.flag.usrtau ? to_device(ds0.utau, ds0.ntau) : nullptr;
   double *d_umu = ds0.flag.usrang ? to_device(ds0.umu, ds0.numu) : nullptr;
   double *d_phi = ds0.flag.usrang ? to_device(ds0.phi, ds0.nphi) : nullptr;
+  double *d_zd = ds0.flag.spher ? to_device(ds0.zd, ds0.nlyr + 1) : nullptr;
 
   constexpr size_t kDisortStackBytes = 32 * 1024;
   C10_CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, kDisortStackBytes));
@@ -119,15 +123,15 @@ void call_disort_cuda(at::TensorIterator& iter, int upward, bool force_general,
                                : c_disort_work_size(&ds0);
   if (fast_flux && ds0.nstr == 4) {
     launch_disort_cuda<4>(iter, upward, ds0, d_wvnmlo, d_wvnmhi, d_utau,
-                          d_umu, d_phi, work_size, cuda_workspace);
+                          d_umu, d_phi, d_zd, work_size, cuda_workspace);
   }
   else if (fast_flux) {
     launch_disort_cuda<8>(iter, upward, ds0, d_wvnmlo, d_wvnmhi, d_utau,
-                          d_umu, d_phi, work_size, cuda_workspace);
+                          d_umu, d_phi, d_zd, work_size, cuda_workspace);
   }
   else {
     launch_disort_cuda<0>(iter, upward, ds0, d_wvnmlo, d_wvnmhi, d_utau,
-                          d_umu, d_phi, work_size, cuda_workspace);
+                          d_umu, d_phi, d_zd, work_size, cuda_workspace);
   }
 
   C10_CUDA_CHECK(cudaFree(d_wvnmlo));
@@ -135,6 +139,7 @@ void call_disort_cuda(at::TensorIterator& iter, int upward, bool force_general,
   C10_CUDA_CHECK(cudaFree(d_utau));
   C10_CUDA_CHECK(cudaFree(d_umu));
   C10_CUDA_CHECK(cudaFree(d_phi));
+  C10_CUDA_CHECK(cudaFree(d_zd));
 }
 
 }  // namespace disort

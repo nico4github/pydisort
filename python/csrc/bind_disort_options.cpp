@@ -37,5 +37,8 @@ void bind_disort_options(py::module& m) {
       .ADD_OPTION(std::vector<double>, disort::DisortOptionsImpl, user_phi)
       .ADD_OPTION(std::vector<double>, disort::DisortOptionsImpl, wave_lower)
       .ADD_OPTION(std::vector<double>, disort::DisortOptionsImpl, wave_upper)
+      .def("pseudo_spherical", &disort::DisortOptionsImpl::pseudo_spherical,
+           py::arg("radius"), py::arg("level_altitudes"),
+           py::return_value_policy::reference)
       .ADD_OPTION(disort_state, disort::DisortOptionsImpl, ds);
 }

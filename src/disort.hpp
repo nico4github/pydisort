@@ -58,6 +58,14 @@ struct DisortOptionsImpl {
     os << "* wave_upper = ";
     for (auto const& v : wave_upper()) os << v << ", ";
     os << "\n";
+
+    if (pseudo_spherical_enabled_) {
+      os << "* pseudo_spherical_radius = " << pseudo_spherical_radius_
+         << "\n";
+      os << "* pseudo_spherical_altitudes = ";
+      for (auto const& v : pseudo_spherical_altitudes_) os << v << ", ";
+      os << "\n";
+    }
   }
 
   //! set disort header
@@ -109,6 +117,26 @@ struct DisortOptionsImpl {
 
   //! placeholder for disort state
   ADD_ARG(disort_state, ds);
+
+ public:
+  //! Enable pseudo-spherical direct-beam geometry in C-DISORT units.
+  DisortOptionsImpl& pseudo_spherical(
+      double radius, std::vector<double> level_altitudes);
+
+  bool pseudo_spherical_enabled() const noexcept {
+    return pseudo_spherical_enabled_;
+  }
+  double pseudo_spherical_radius() const noexcept {
+    return pseudo_spherical_radius_;
+  }
+  const std::vector<double>& pseudo_spherical_altitudes() const noexcept {
+    return pseudo_spherical_altitudes_;
+  }
+
+ private:
+  bool pseudo_spherical_enabled_ = false;
+  double pseudo_spherical_radius_ = 0.;
+  std::vector<double> pseudo_spherical_altitudes_;
 };
 
 //! Shared pointer to DisortOptionsImpl

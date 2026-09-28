@@ -401,6 +401,17 @@ class DisortOptions:
           pydisort.DisortOptions: class object
         """
         ...
+    def pseudo_spherical(
+        self, radius: float, level_altitudes: Union[List[float], ndarray]
+    ) -> DisortOptions:
+        """Enable C-DISORT pseudo-spherical direct-beam geometry.
+
+        ``radius`` and ``level_altitudes`` must use the same length unit.
+        Provide exactly ``nlyr + 1`` finite level altitudes in strictly
+        descending order from the top of the atmosphere to the surface. This
+        method is the supported replacement for the raw ``spher`` flag.
+        """
+        ...
     @overload
     def ds(self) -> disort_state:
         """
@@ -428,7 +439,8 @@ class Disort(nn.Module):
     DISORT (Discrete Ordinates Radiative Transfer) module for radiative transfer calculations.
 
     This class wraps the DISORT radiative transfer solver and provides a PyTorch-compatible
-    interface for computing radiative fluxes and intensities in plane-parallel atmospheres.
+    interface for computing radiative fluxes and intensities in plane-parallel
+    atmospheres and pseudo-spherical direct-beam geometry.
     """
 
     options: DisortOptions

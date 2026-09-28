@@ -303,6 +303,12 @@ backend-selection check, the full Python suite, and CTest with the local
 `.venv` interpreter. Use `./run_pytest.sh --list` to print each command and
 collect the pytest and CTest cases without executing them.
 
+Use `./rebuild_and_test.sh` after native source changes. It prints the start
+and completion time for each phase, reconfigures and builds CMake for H100
+architecture 9.0, reinstalls the local extension, and runs `run_pytest.sh`,
+pre-commit, and `pip check`. Detailed command output is kept in temporary
+logs; a failed phase prints its full log.
+
 Correctness is established three ways: against **published DISORT reference
 values** (`tests/reference/` ports six of the fourteen DISORT test problems), against **analytic solutions**, and
 against **conservation laws**. See the

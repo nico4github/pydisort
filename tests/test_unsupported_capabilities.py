@@ -6,7 +6,7 @@ from pydisort import Disort, DisortOptions
 
 UNSUPPORTED_FLAGS = {
     "ibcnd": "standard flux and radiance calculations",
-    "spher": "plane-parallel geometry",
+    "spher": "DisortOptions.pseudo_spherical(radius, level_altitudes)",
     "general_source": "beam, isotropic, or thermal inputs",
     "output_uum": "gather_flx or gather_rad",
 }

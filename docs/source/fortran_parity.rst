@@ -15,20 +15,22 @@ illumination, thermal emission, Lambertian reflection, user optical depths and
 angles, batching, and explicit CPU/CUDA backend selection. Published reference
 coverage includes Problems 1, 2, 3, 6a-c, 9, and 10. Problem 9b already
 checks a tabulated phase function represented by explicit Legendre moments.
-On 2026-09-28 the local H100 build passed 193 pytest tests and 21 CTest tests;
+On 2026-09-28 the local H100 build passed 215 pytest tests and 23 CTest tests;
 the CUDA selector and CPU-versus-CUDA suites also passed.
 
 The C-DISORT source has implementations for pseudo-spherical direct-beam
 geometry, general-source arrays, several BRDFs, and special-boundary
 albedo/transmissivity. These are not complete Python capabilities yet:
 
-* ``ibcnd`` reaches a generic runtime check rather than raising
+* ``ibcnd``, ``general_source``, and ``output_uum`` have no typed Python
+  inputs or result accessors yet. Raw configuration raises
   ``NotImplementedError``.
-* ``spher``, ``general_source``, and ``output_uum`` can be parsed, but their
-  required inputs or result accessors are not public.
+* Pseudo-spherical direct-beam geometry is supported through the typed
+  ``pseudo_spherical`` option. Raw ``spher`` configuration raises
+  ``NotImplementedError`` so it cannot appear to work without its required
+  radius and level-altitude inputs.
 * BRDF selection is absent from the Python API; the state uses
   ``BRDF_NONE``.
-* There is no feature-specific H100 test for any of these gaps.
 
 Work item 0: capability guards
 ------------------------------
@@ -56,7 +58,14 @@ Validation:
 Work item 1: pseudo-spherical direct beam
 -----------------------------------------
 
-**Status:** planned; first physical capability after the guard work.
+**Status:** complete. ``DisortOptions.pseudo_spherical(radius,
+level_altitudes)`` maps the radius and strictly top-to-bottom levels to the
+C-DISORT state without exposing mutable raw state. The raw ``spher`` flag still
+raises ``NotImplementedError``. The direct-beam C-DISORT reference is a clear
+100 km layer over a 6371 km body with optical depth 1 and ``umu0=0.1``: bottom
+downward flux is ``4.4428045259949897e-05``. Its large-radius limit agrees
+with plane parallel at ``2e-6`` relative tolerance. On the H100, CPU and CUDA
+agree at ``1e-10`` relative and ``1e-12`` absolute tolerances.
 
 Expose a narrow typed configuration for body radius and level altitudes, with
 validation that the values have common units, contain ``nlyr + 1`` levels, and
@@ -152,4 +161,8 @@ Status reporting
 Update this page in the same commit as each capability: mark its status, name
 the reference case and tolerances, state CPU and H100 CUDA results, and list
 any remaining unsupported combinations. Do not mark an item complete from a
-successful build alone.
+successful build alone. Validation reports use exclusive outcomes: ``PASS``
+for a completed validated calculation, ``SKIP`` only for a documented
+unsupported capability with its reason, and ``FAIL`` for an error or numerical
+check failure in a declared supported calculation. Summaries must count each
+outcome separately.

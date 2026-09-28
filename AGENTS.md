@@ -16,7 +16,10 @@ different result contract gets its own method and result type.
 Public interface contract: an unsupported configuration, backend, dtype, or
 feature combination must raise `NotImplementedError` with an actionable
 message. Never silently select another backend, drop inputs, approximate a
-missing feature, or change the calculation. Every additive capability requires
+missing feature, or change the calculation. A bridge or validation report must
+separate `PASS`, `SKIP`, and `FAIL`: `SKIP` is only for a documented unsupported
+capability with its reason, while a supported calculation error is `FAIL`.
+Every additive capability requires
 a dedicated pytest that proves its stated contract; use a published DISORT
 reference, analytic limit, conservation law, or direct Fortran comparison when
 one is available.

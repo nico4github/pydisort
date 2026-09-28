@@ -46,6 +46,14 @@ void DisortOptionsImpl::set_header(std::string const& header) {
   snprintf(ds().header, sizeof(ds().header), "%s", header.c_str());
 }
 
+DisortOptionsImpl& DisortOptionsImpl::pseudo_spherical(
+    double radius, std::vector<double> level_altitudes) {
+  pseudo_spherical_enabled_ = true;
+  pseudo_spherical_radius_ = radius;
+  pseudo_spherical_altitudes_ = std::move(level_altitudes);
+  return *this;
+}
+
 void DisortOptionsImpl::set_flags(std::string const& str) {
   std::vector<std::string> dstr = Vectorize<std::string>(str.c_str(), " ,");
 
@@ -111,7 +119,8 @@ void validate_supported_configuration(const DisortOptions& options) {
                                    "standard flux and radiance calculations");
     }
     if (flag == "spher") {
-      raise_unsupported_capability("spher", "plane-parallel geometry");
+      raise_unsupported_capability(
+          "spher", "DisortOptions.pseudo_spherical(radius, level_altitudes)");
     }
     if (flag == "general_source") {
       raise_unsupported_capability("general_source",
@@ -119,6 +128,27 @@ void validate_supported_configuration(const DisortOptions& options) {
     }
     if (flag == "output_uum") {
       raise_unsupported_capability("output_uum", "gather_flx or gather_rad");
+    }
+  }
+
+  if (options->pseudo_spherical_enabled()) {
+    TORCH_CHECK(std::isfinite(options->pseudo_spherical_radius()) &&
+                    options->pseudo_spherical_radius() > 0.,
+                "DisortOptions.pseudo_spherical: radius must be finite and "
+                "positive");
+    const auto& altitudes = options->pseudo_spherical_altitudes();
+    TORCH_CHECK(altitudes.size() == options->ds().nlyr + 1,
+                "DisortOptions.pseudo_spherical: level_altitudes must contain "
+                "nlyr + 1 values");
+    for (size_t i = 0; i < altitudes.size(); ++i) {
+      TORCH_CHECK(std::isfinite(altitudes[i]),
+                  "DisortOptions.pseudo_spherical: level_altitudes must be "
+                  "finite");
+      if (i > 0) {
+        TORCH_CHECK(altitudes[i - 1] > altitudes[i],
+                    "DisortOptions.pseudo_spherical: level_altitudes must be "
+                    "strictly descending from top to bottom");
+      }
     }
   }
 }
@@ -133,6 +163,8 @@ DisortImpl::DisortImpl(DisortOptions const& options_) : options(options_) {
 void DisortImpl::reset() {
   options->set_header(options->header());
   options->set_flags(options->flags());
+  options->ds().flag.spher = options->pseudo_spherical_enabled();
+  options->ds().radius = options->pseudo_spherical_radius();
 
   options->ds().accur = options->accur();
 
@@ -178,6 +210,11 @@ void DisortImpl::reset() {
 
       for (int j = 0; j < options->user_phi().size(); ++j)
         ds_[i].phi[j] = options->user_phi()[j];
+    }
+
+    if (ds_[i].flag.spher) {
+      const auto& altitudes = options->pseudo_spherical_altitudes();
+      for (int j = 0; j <= ds_[i].nlyr; ++j) ds_[i].zd[j] = altitudes[j];
     }
 
     if (ds_[i].flag.planck) {
