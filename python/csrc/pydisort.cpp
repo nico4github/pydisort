@@ -19,6 +19,8 @@ void bind_cdisort(py::module &m);
 
 PYBIND11_MODULE(pydisort, m) {
   m.attr("__name__") = "pydisort";
+  py::register_exception<disort::UnsupportedCapabilityError>(
+      m, "UnsupportedCapabilityError", PyExc_NotImplementedError);
 
   m.attr("kIRFLDIR") = 0;
   m.attr("kIFLDN") = 1;
@@ -52,6 +54,8 @@ PYBIND11_MODULE(pydisort, m) {
           "forward",
           [](disort::DisortImpl &self, torch::Tensor prop, std::string bname,
              torch::optional<torch::Tensor> temf, const py::kwargs &kwargs) {
+            disort::validate_supported_configuration(self.options);
+
             // get bc from kwargs
             std::map<std::string, torch::Tensor> bc;
             for (auto item : kwargs) {

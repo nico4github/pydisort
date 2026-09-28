@@ -138,10 +138,14 @@ class DisortOptions:
         The parser also recognizes backend flags that are not usable as
         complete features through the public Python interface:
 
-        * 'ibcnd': special-boundary mode is rejected by forward.
-        * 'spher': body radius and level altitudes are not exposed.
-        * 'general_source': user-source arrays are not exposed.
-        * 'output_uum': Fourier-component outputs have no public accessor.
+        * 'ibcnd': special-boundary mode raises ``NotImplementedError`` when
+          used.
+        * 'spher': body radius and level altitudes are not exposed, so using
+          it raises ``NotImplementedError``.
+        * 'general_source': user-source arrays are not exposed, so using it
+          raises ``NotImplementedError``.
+        * 'output_uum': Fourier-component outputs have no public accessor, so
+          using it raises ``NotImplementedError``.
 
         Do not enable these flags in Python calculations. See
         :ref:`python-flag-support` for the distinction between backend

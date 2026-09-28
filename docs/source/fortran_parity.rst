@@ -33,7 +33,10 @@ albedo/transmissivity. These are not complete Python capabilities yet:
 Work item 0: capability guards
 ------------------------------
 
-**Status:** planned; first implementation change.
+**Status:** complete. Construction and dispatch reject each listed flag before
+CPU or CUDA work; the dedicated test passes all 16 CPU/CUDA construction and
+dispatch cases on the H100, checking the built-in exception and an actionable
+alternative.
 
 Before exposing a new feature, centralize validation of every currently
 unsupported public flag and backend combination. Each must raise

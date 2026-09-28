@@ -92,7 +92,39 @@ void DisortOptionsImpl::set_flags(std::string const& str) {
   }
 }
 
+namespace {
+
+[[noreturn]] void raise_unsupported_capability(const char* flag,
+                                               const char* alternative) {
+  throw UnsupportedCapabilityError("pydisort does not implement " +
+                                   std::string(flag) + "; use " + alternative +
+                                   " instead.");
+}
+
+}  // namespace
+
+void validate_supported_configuration(const DisortOptions& options) {
+  const auto flags = Vectorize<std::string>(options->flags().c_str(), " ,");
+  for (const auto& flag : flags) {
+    if (flag == "ibcnd") {
+      raise_unsupported_capability("ibcnd",
+                                   "standard flux and radiance calculations");
+    }
+    if (flag == "spher") {
+      raise_unsupported_capability("spher", "plane-parallel geometry");
+    }
+    if (flag == "general_source") {
+      raise_unsupported_capability("general_source",
+                                   "beam, isotropic, or thermal inputs");
+    }
+    if (flag == "output_uum") {
+      raise_unsupported_capability("output_uum", "gather_flx or gather_rad");
+    }
+  }
+}
+
 DisortImpl::DisortImpl(DisortOptions const& options_) : options(options_) {
+  validate_supported_configuration(options);
   reset();
 }
 
@@ -238,8 +270,7 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
                                   std::map<std::string, torch::Tensor>* bc,
                                   std::string bname,
                                   torch::optional<torch::Tensor> temf) {
-  TORCH_CHECK(options->ds().flag.ibcnd == 0,
-              "DisortImpl::forward: ds.ibcnd != 0");
+  validate_supported_configuration(options);
 
   const auto& backend = options->backend();
   // "auto" preserves input-device dispatch; explicit backends move all inputs.

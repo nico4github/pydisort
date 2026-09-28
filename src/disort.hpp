@@ -2,6 +2,7 @@
 
 // C/C++
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -118,6 +119,13 @@ struct DisortOptionsImpl {
  * instances sharing the same DisortOptions object will see the changes.
  */
 using DisortOptions = std::shared_ptr<DisortOptionsImpl>;
+
+class UnsupportedCapabilityError : public std::runtime_error {
+ public:
+  using std::runtime_error::runtime_error;
+};
+
+void validate_supported_configuration(const DisortOptions& options);
 
 class DisortImpl : public torch::nn::Cloneable<DisortImpl> {
  public:
