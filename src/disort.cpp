@@ -241,6 +241,24 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
   TORCH_CHECK(options->ds().flag.ibcnd == 0,
               "DisortImpl::forward: ds.ibcnd != 0");
 
+  const auto& backend = options->backend();
+  // "auto" preserves input-device dispatch; explicit backends move all inputs.
+  TORCH_CHECK(
+      backend == "auto" || backend == "cpu" || backend == "cuda",
+      "DisortImpl::forward: backend must be one of 'auto', 'cpu', or 'cuda'");
+
+  if (backend != "auto") {
+    const auto target_device = backend == "cpu" ? torch::Device(torch::kCPU)
+                                                : torch::Device(torch::kCUDA);
+    prop = prop.to(target_device);
+    for (auto& item : *bc) {
+      item.second = item.second.to(target_device);
+    }
+    if (temf.has_value()) {
+      temf = temf.value().to(target_device);
+    }
+  }
+
   // check dimensions
   TORCH_CHECK(prop.dim() == 4, "DisortImpl::forward: prop.dim() != 4");
 

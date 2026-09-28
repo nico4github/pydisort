@@ -32,6 +32,7 @@ struct DisortOptionsImpl {
   void report(std::ostream& os) const {
     os << "* header = " << header() << "\n"
        << "* flags = " << flags() << "\n"
+       << "* backend = " << backend() << "\n"
        << "* nwave = " << nwave() << "\n"
        << "* ncol = " << ncol() << "\n"
        << "* accur = " << accur() << "\n"
@@ -71,6 +72,8 @@ struct DisortOptionsImpl {
   //! header
   ADD_ARG(std::string, header) = "running disort ...";
   ADD_ARG(std::string, flags) = "";
+
+  ADD_ARG(std::string, backend) = "auto";
 
   //! spectral dimensions
   ADD_ARG(int, nwave) = 1;

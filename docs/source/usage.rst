@@ -37,6 +37,19 @@ the :class:`pydisort.DisortOptions` object by:
    its internal arrays. Do not change dimensions or flags afterwards;
    construct a new solver for a new configuration.
 
+Execution backend
+-----------------
+
+``DisortOptions.backend()`` is ``"auto"`` by default, preserving the existing
+behaviour: the device of ``prop`` selects the CPU or CUDA implementation. Set
+``backend("cpu")`` or ``backend("cuda")`` to make a comparison explicit. In
+those modes, ``forward`` transfers ``prop``, every boundary-condition tensor,
+and ``temf`` together and returns a tensor on the selected device. This is
+convenient for parity checks, but transferring every call is not a benchmark:
+keep tensors on the selected device and use ``backend("auto")`` for production
+batches. ``"cuda"`` requires a CUDA-enabled pydisort build and available CUDA
+device.
+
 Understanding the dimensions
 ----------------------------
 

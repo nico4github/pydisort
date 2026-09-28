@@ -193,6 +193,18 @@ class DisortOptions:
         """
         ...
     @overload
+    def backend(self) -> str:
+        """Get the execution backend (``auto``, ``cpu``, or ``cuda``)."""
+        ...
+    @overload
+    def backend(self, backend: str) -> DisortOptions:
+        """
+        Select execution backend. ``auto`` preserves input-device dispatch;
+        ``cpu`` and ``cuda`` move ``prop``, boundary tensors, and ``temf``
+        together before solving.
+        """
+        ...
+    @overload
     def nwave(self) -> int:
         """
         Get number of wavelengths for disort

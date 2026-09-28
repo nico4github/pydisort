@@ -27,6 +27,7 @@ void bind_disort_options(py::module& m) {
            })
       .ADD_OPTION(std::string, disort::DisortOptionsImpl, header)
       .ADD_OPTION(std::string, disort::DisortOptionsImpl, flags)
+      .ADD_OPTION(std::string, disort::DisortOptionsImpl, backend)
       .ADD_OPTION(int, disort::DisortOptionsImpl, nwave)
       .ADD_OPTION(int, disort::DisortOptionsImpl, ncol)
       .ADD_OPTION(double, disort::DisortOptionsImpl, accur)
