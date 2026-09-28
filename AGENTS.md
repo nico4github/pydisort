@@ -13,6 +13,13 @@ configured solver dimensions and flags. New configuration belongs in validated
 `DisortOptions` methods or narrow, typed option objects; a feature with a
 different result contract gets its own method and result type.
 
+Public interface contract: an unsupported configuration, backend, dtype, or
+feature combination must raise `NotImplementedError` with an actionable
+message. Never silently select another backend, drop inputs, approximate a
+missing feature, or change the calculation. Every additive capability requires
+a dedicated pytest that proves its stated contract; use a published DISORT
+reference, analytic limit, conservation law, or direct Fortran comparison when
+one is available.
 Do not claim Apple MPS acceleration. The project has a CUDA implementation;
 Apple Silicon support currently means native CPU wheels and CPU batching.
 
