@@ -282,6 +282,11 @@ Every pull request and every push to ``main`` runs, through GitHub Actions
 Release wheels are built for CPython 3.10-3.14 with ``cibuildwheel``
 (``.github/workflows/cd.yml`` and ``release.yml``).
 
+CUDA is a distinct manual H100 gate (``.github/workflows/h100.yml``). It builds
+with CUDA enabled and compute capability 9.0, then runs the CUDA selection
+test, full pytest suite, and CTest. The workflow accepts only a dedicated
+self-hosted runner with the ``h100`` label; it never runs on pull requests.
+
 Benchmark thread-control checks, the documentation renderer tests and the
 source-tree setup-guidance check are :ref:`separate developer checks
 <separate-developer-checks>`, not part of the CI/CTest solver validation.

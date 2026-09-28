@@ -16,7 +16,7 @@ To run the `pre-commit` hooks manually, run `pre-commit run --all-files` in the 
 CI/CD
 ~~~~~
 
-Three workflows live in ``.github/workflows`` and between them cover the life
+Four workflows live in ``.github/workflows`` and between them cover the life
 of a change:
 
 .. list-table::
@@ -30,6 +30,10 @@ of a change:
      - Pull request to ``main``, and pushes to ``main``
      - Style checks, then builds and runs the CTest suite across a matrix
        of operating systems and Python versions.
+   * - ``h100.yml``
+     - Manual dispatch on a dedicated self-hosted H100 runner
+     - Builds CUDA for compute capability 9.0, then runs CUDA, full pytest,
+       and CTest validation. It is intentionally separate from pull-request CI.
    * - ``cd.yml``
      - A pull request to ``main`` is merged
      - Works out the next version from the PR labels, pushes the tag, and

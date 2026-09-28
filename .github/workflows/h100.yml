@@ -1,0 +1,52 @@
+name: H100 Validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pydisort-h100-validation
+  cancel-in-progress: false
+
+jobs:
+  cuda-reference-and-build:
+    runs-on: [self-hosted, linux, x64, h100]
+    timeout-minutes: 90
+    env:
+      CUDA_HOME: /usr/local/cuda-13.2
+      VENV: ${{ runner.temp }}/pydisort-h100-venv
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify H100 toolchain
+        run: |
+          nvidia-smi
+          "$CUDA_HOME/bin/nvcc" --version
+          pyenv shell 3.12.14
+          python -m venv "$VENV"
+          "$VENV/bin/python" -m pip install --upgrade pip
+          "$VENV/bin/python" -m pip install 'torch==2.10.0' \
+            --index-url https://download.pytorch.org/whl/cu130
+          "$VENV/bin/python" -c \
+            "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available()); assert torch.__version__.startswith('2.10.0+cu130'); assert torch.cuda.is_available()"
+
+      - name: Build pydisort for H100
+        run: |
+          "$VENV/bin/python" -m pip install numpy pytest pre-commit cmake ninja setuptools setuptools-scm wheel
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DCUDA=ON \
+            -DCMAKE_CUDA_ARCHITECTURES=90 \
+            -DPython3_EXECUTABLE="$VENV/bin/python"
+          cmake --build build --parallel
+          WORKSPACE="$GITHUB_WORKSPACE" TORCH_CUDA_ARCH_LIST="9.0" \
+            "$VENV/bin/python" -m pip install --no-build-isolation --no-deps -v .
+
+      - name: Run CUDA, reference, and CTest validation
+        run: |
+          "$VENV/bin/python" -m pytest tests/cuda/test_cuda_backend_selection.py -v -rs
+          "$VENV/bin/python" -m pytest tests/ -v -rs
+          "$VENV/bin/ctest" --test-dir build --output-on-failure
