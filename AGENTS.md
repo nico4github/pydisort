@@ -145,3 +145,10 @@ Use a focused branch, stage only task-relevant files, inspect the final diff,
 and make a focused commit once the work is ready. In the handoff, state the
 feature contract, Fortran/cdisort comparison basis, exact commands and results,
 and every check that was skipped with its reason.
+
+## Counted parity inventory
+
+Maintain the counted C-DISORT-backed Fortran-parity inventory in
+``docs/source/fortran_parity.rst``. Update its family and target totals, the
+target status, reference basis, and CPU/H100 CUDA result in the same commit as
+each parity change. A guarded unsupported target remains in the count.

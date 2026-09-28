@@ -191,8 +191,9 @@ intensity-correction and diagnostic flags.
 Recognizing a flag name is not the same as exposing a complete feature:
 
 * ``ibcnd`` is recognized, but ``forward`` rejects the special-boundary mode.
-* ``spher`` requires the body's radius and level altitudes; those inputs are
-  not exposed by the public Python interface. Do not enable it.
+* ``spher`` must be configured through
+  ``DisortOptions.pseudo_spherical(radius, level_altitudes)``. The raw flag is
+  rejected because it cannot supply the required geometry.
 * ``general_source`` requires user-source arrays that are not exposed by the
   public Python interface. Do not enable it.
 * ``output_uum`` requests Fourier components for which there is no public

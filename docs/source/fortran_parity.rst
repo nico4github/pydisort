@@ -29,8 +29,71 @@ albedo/transmissivity. These are not complete Python capabilities yet:
   ``pseudo_spherical`` option. Raw ``spher`` configuration raises
   ``NotImplementedError`` so it cannot appear to work without its required
   radius and level-altitude inputs.
-* BRDF selection is absent from the Python API; the state uses
-  ``BRDF_NONE``.
+* BRDF selection is absent from the Python API; the state uses ``BRDF_NONE``.
+
+Tracked remaining capability count and priority
+-----------------------------------------------
+
+There are **five remaining capability families**, comprising **eight
+individually countable targets**. The BRDF family is counted as four targets
+because C-DISORT exposes four distinct models. This is the current tracked
+scope for C-DISORT-backed Fortran parity; it does not claim parity with
+unported solver-core changes from other DISORT versions.
+
+.. list-table:: Ordered parity backlog
+   :header-rows: 1
+   :widths: 8 24 14 54
+
+   * - Priority
+     - Target
+     - Status
+     - Why it comes next and required evidence
+   * - 1
+     - General source arrays
+     - Unsupported
+     - This is the smallest missing source-term input already implemented by
+       C-DISORT. Add a typed input, shape validation, a zero-source reduction,
+       a direct C-DISORT/Fortran nonzero reference, and CPU/H100 CUDA agreement.
+   * - 2
+     - Fourier-component output (``output_uum``)
+     - Unsupported
+     - The underlying solver already produces the data. Define a narrow,
+       separate result accessor and verify its indexing against C-DISORT before
+       combining it with more complex surface physics.
+   * - 3
+     - RPV BRDF
+     - Unsupported
+     - First non-Lambertian lower-boundary model. Expose typed parameters and
+       validate against its C-DISORT/Fortran reference and the Lambertian limit.
+   * - 4
+     - CAM BRDF
+     - Unsupported
+     - Add only after the shared typed BRDF option and RPV test harness exist.
+   * - 5
+     - AMB BRDF
+     - Unsupported
+     - Add only after the shared typed BRDF option and RPV test harness exist.
+   * - 6
+     - Hapke BRDF
+     - Unsupported
+     - Add only after the shared typed BRDF option and RPV test harness exist.
+   * - 7
+     - Special boundary (``ibcnd``)
+     - Unsupported
+     - It changes outputs to albedo/transmissivity, so it needs a separate
+       result type after ordinary flux/radiance and surface contracts are firm.
+   * - 8
+     - ``DELTAMPLUS``
+     - Deferred
+     - This requires solver-core work or a documented C-DISORT upgrade/patch;
+       it is intentionally last and must not be emulated in the wrapper.
+
+The count is reduced only when a target has a public typed contract, a
+dedicated reference-based pytest, and CPU/H100 CUDA agreement. A guarded
+``NotImplementedError`` remains unsupported and is still included in this
+count. Update this table and its five-family/eight-target totals in the same
+commit that changes a target's status.
+
 
 Work item 0: capability guards
 ------------------------------
