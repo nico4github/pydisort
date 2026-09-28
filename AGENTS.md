@@ -1,0 +1,137 @@
+# Development Instructions
+
+## Mission and scope
+
+This fork extends pydisort toward a documented, reproducible comparison with
+the DISORT Fortran implementations in the sibling `../disort-pyf` checkout.
+Preserve pydisort's existing plane-parallel API and numerical behaviour while
+adding missing cdisort capabilities through explicit, backward-compatible APIs.
+
+Treat the existing public API as stable. Do not expose a mutable raw
+`disort_state` to Python: its allocations and pointer ownership depend on the
+configured solver dimensions and flags. New configuration belongs in validated
+`DisortOptions` methods or narrow, typed option objects; a feature with a
+different result contract gets its own method and result type.
+
+Do not claim Apple MPS acceleration. The project has a CUDA implementation;
+Apple Silicon support currently means native CPU wheels and CPU batching.
+
+## Parity work
+
+Before implementing a missing feature, inspect the relevant Fortran input
+flag/output convention in `../disort-pyf`, the cdisort 2.1.3 state and test
+driver, current pydisort wrapper/bindings, and neighbouring tests. Record the
+feature in `docs/source/fortran_parity.rst` when parity work begins, including:
+
+- Fortran name and supported input/output modes.
+- cdisort availability and any semantic difference.
+- pydisort status: unsupported, CPU-only, CUDA-supported, or intentionally
+  out of scope.
+- Reference test case, tolerances, and unsupported combinations.
+
+Use a separate additive change for each capability, in this order unless the
+task specifies otherwise:
+
+1. Pseudo-spherical geometry: validated body radius and level altitudes.
+2. Tabulated phase functions and general-source arrays.
+3. BRDF surface models.
+4. Special-boundary (`ibcnd`) calculations, with a dedicated result contract.
+
+`DELTAMPLUS` is not a hidden cdisort binding. It requires solver-core work or
+an intentional cdisort upgrade/port, with its own design note and references.
+
+Never silently alter `cdisort213/`. Preserve upstream provenance and represent
+any required cdisort change as a documented patch, following the repository's
+`cdisort_patches` practice. Keep wrapper, binding, and core-solver changes
+clearly separated in the commit history.
+
+## Clean implementation loop
+
+Before editing, inspect the relevant files, tests, examples, public type stub,
+and project conventions. Reuse existing abstractions; do not create a helper,
+class, dependency, or layer of indirection unless it removes meaningful
+duplication or complexity.
+
+For every change:
+
+1. Implement the smallest behaviourally complete change.
+2. Add or update a regression test. Prefer a published DISORT reference,
+   analytic limit, conservation law, or a direct Fortran comparison over a
+   snapshot of current output.
+3. Run the relevant checks.
+4. Review the diff as a strict senior engineer for duplication, dead code,
+   needless abstractions, overly complex control flow, poor names,
+   inconsistent patterns, needless dependencies, and swallowed errors.
+5. Simplify without changing behaviour, then rerun the affected checks.
+
+Match surrounding style and preserve readable layout. Do not reformat unrelated
+files. Keep errors precise: reject unsupported flag/device/dtype combinations
+with an actionable message rather than silently falling back or changing the
+calculation.
+
+## CUDA and H100 work
+
+The H100 target is CUDA compute capability 9.0. Build CUDA explicitly and
+confirm the PyTorch and extension CUDA versions agree before benchmarking:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON \
+  -DCUDA=ON -DCMAKE_CUDA_ARCHITECTURES=90
+cmake --build build --parallel
+python -m pip install --no-build-isolation .
+python -c 'import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.get_device_name(0))'
+```
+
+Do not mark a new feature CUDA-supported until it has CPU reference coverage
+and a CPU-versus-CUDA agreement test on the H100. Keep unsupported features
+CPU-only with an explicit error; do not copy MPS tensors to CPU implicitly.
+Benchmark only after numerical agreement passes, and report device, PyTorch,
+CUDA, compiler, stream count, batch shape, precision, timings, and validation
+tolerances.
+
+## Required validation
+
+Use one isolated environment for CMake and pip so the compiled extension links
+against the same `torch`. CMake builds the C++ library; `pip install` does not
+replace that step.
+
+```bash
+python -m pip install pytest pre-commit
+pre-commit install
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+cmake --build build --parallel
+python -m pip install --no-build-isolation .
+python -m pytest tests/ -v -rs
+ctest --test-dir build --output-on-failure
+pre-commit run --all-files
+git diff --check
+```
+
+Run the relevant focused test while iterating, then the full commands above
+before handoff when feasible. Pre-commit formats/lints only; it never replaces
+solver tests. Reconfigure CMake after adding a Python test so CTest registers
+and copies it.
+
+For public API changes, update `python/pydisort.pyi` and the applicable Sphinx
+pages. Validate documentation with:
+
+```bash
+python -m pip install -r docs/requirements.txt
+python -m unittest discover -s docs/_ext -p 'test_*.py'
+python -m sphinx -E -b html -W --keep-going docs/source docs/_build/html
+python -m sphinx -b doctest -W docs/source docs/_build/doctest
+```
+
+Run benchmark tooling only when it changes:
+
+```bash
+python -m pip install PythonicDISORT threadpoolctl
+python -m pytest benchmarks/tests/ -v -rs
+```
+
+## Git and handoff
+
+Use a focused branch, stage only task-relevant files, inspect the final diff,
+and make a focused commit once the work is ready. In the handoff, state the
+feature contract, Fortran/cdisort comparison basis, exact commands and results,
+and every check that was skipped with its reason.
