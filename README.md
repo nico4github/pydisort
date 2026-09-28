@@ -298,6 +298,11 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+For the H100 development checkout, `./run_pytest.sh` runs the focused CUDA
+backend-selection check, the full Python suite, and CTest with the local
+`.venv` interpreter. Use `./run_pytest.sh --list` to print each command and
+collect the pytest and CTest cases without executing them.
+
 Correctness is established three ways: against **published DISORT reference
 values** (`tests/reference/` ports six of the fourteen DISORT test problems), against **analytic solutions**, and
 against **conservation laws**. See the
