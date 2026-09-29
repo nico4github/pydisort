@@ -192,7 +192,14 @@ Unsupported model names and parameter combinations must raise
 Work item 4: special-boundary calculations
 -------------------------------------------
 
-**Status:** planned.
+**Status:** unsupported after a CPU prototype investigation on 2026-09-29.
+
+A typed prototype produced Problem 13a's intermediate ``albedo=0.0378`` and
+``transmissivity=0.9425`` at ``mu=0.5``, but normal ``forward()`` cleanup
+failed with ``free(): invalid pointer`` and an isolated direct C-DISORT route
+segfaulted. The prototype was removed. A standalone C reproduction of the
+C-DISORT Problem 13 allocation/run/free sequence must pass before this API is
+reintroduced.
 
 ``ibcnd`` changes the calculation and output contract: it returns medium
 albedo and transmissivity rather than the normal flux/radiance result. Give it
