@@ -46,11 +46,22 @@ void call_disort_cpu(at::TensorIterator& iter, int upward, bool force_general,
   });
 }
 
+void call_special_boundary_cpu(torch::Tensor&, const torch::Tensor&,
+                               const torch::Tensor&, const disort_state&,
+                               const std::vector<double>&, at::Tensor*) {
+  TORCH_CHECK(false,
+              "pydisort special-boundary CUDA dispatch was selected "
+              "without CUDA support");
+}
+
 }  // namespace disort
 
 namespace at::native {
 
 DEFINE_DISPATCH(call_disort);
+DEFINE_DISPATCH(call_special_boundary);
 REGISTER_ALL_CPU_DISPATCH(call_disort, &disort::call_disort_cpu);
+REGISTER_ALL_CPU_DISPATCH(call_special_boundary,
+                          &disort::call_special_boundary_cpu);
 
 }  // namespace at::native

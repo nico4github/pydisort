@@ -403,14 +403,15 @@ SpecialBoundaryResult DisortImpl::medium_albedo_transmissivity(
       backend == "auto" || backend == "cpu" || backend == "cuda",
       "DisortImpl::medium_albedo_transmissivity: backend must be one of "
       "'auto', 'cpu', or 'cuda'");
-  if (backend == "cuda" || (backend == "auto" && prop.is_cuda())) {
-    throw UnsupportedCapabilityError(
-        "pydisort special-boundary output is currently CPU-only; use "
-        "backend='cpu'");
+  if (backend != "auto") {
+    const auto target = backend == "cpu" ? torch::Device(torch::kCPU)
+                                         : torch::Device(torch::kCUDA);
+    prop = prop.to(target);
+    if (albedo.has_value()) albedo = albedo.value().to(target);
   }
 
-  TORCH_CHECK(prop.device().is_cpu() && prop.scalar_type() == torch::kFloat64,
-              "DisortImpl::medium_albedo_transmissivity: prop must be a CPU "
+  TORCH_CHECK(prop.scalar_type() == torch::kFloat64,
+              "DisortImpl::medium_albedo_transmissivity: prop must be a "
               "float64 tensor");
   TORCH_CHECK(prop.dim() == 4,
               "DisortImpl::medium_albedo_transmissivity: prop.dim() != 4");
@@ -442,16 +443,41 @@ SpecialBoundaryResult DisortImpl::medium_albedo_transmissivity(
 
   auto albedo_values = albedo.value_or(
       torch::zeros({options->nwave(), options->ncol()}, prop.options()));
-  TORCH_CHECK(albedo_values.device().is_cpu() &&
+  TORCH_CHECK(albedo_values.device() == prop.device() &&
                   albedo_values.scalar_type() == torch::kFloat64 &&
                   albedo_values.sizes() ==
                       torch::IntArrayRef({options->nwave(), options->ncol()}),
-              "DisortImpl::medium_albedo_transmissivity: albedo must be a "
-              "CPU float64 tensor with shape (nwave, ncol)");
+              "DisortImpl::medium_albedo_transmissivity: albedo must match "
+              "prop device, use float64, and have shape (nwave, ncol)");
 
   prop = prop.contiguous();
   albedo_values = albedo_values.contiguous();
   const int nprop = prop.size(3);
+
+  if (prop.is_cuda()) {
+    auto state = options->ds();
+    state.flag.ibcnd = SPECIAL_BC;
+    state.flag.usrang = TRUE;
+    state.flag.usrtau = FALSE;
+    state.flag.onlyfl = FALSE;
+    state.flag.planck = FALSE;
+    state.flag.lamber = TRUE;
+    state.flag.general_source = FALSE;
+    state.flag.output_uum = FALSE;
+    state.flag.spher = FALSE;
+    state.flag.brdf_type = BRDF_NONE;
+    state.numu = angles.size();
+    state.nphi = 0;
+    state.bc.fbeam = 0.;
+    state.bc.fisot = 0.;
+    state.bc.fluor = 0.;
+    auto result = torch::empty(
+        {options->nwave(), options->ncol(), state.numu, 2}, prop.options());
+    at::native::call_special_boundary(prop.device().type(), result, prop,
+                                      albedo_values, state, angles,
+                                      &cuda_workspace_);
+    return {result.select(3, 0), result.select(3, 1)};
+  }
   const int nsolve = options->nwave() * options->ncol();
   const int numu = angles.size();
   auto result = torch::empty({nsolve, numu, 2}, prop.options());

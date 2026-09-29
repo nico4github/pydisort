@@ -142,10 +142,75 @@ void call_disort_cuda(at::TensorIterator& iter, int upward, bool force_general,
   C10_CUDA_CHECK(cudaFree(d_zd));
 }
 
+
+void call_special_boundary_cuda(torch::Tensor& output, const torch::Tensor& prop,
+                                const torch::Tensor& albedo,
+                                const disort_state& state,
+                                const std::vector<double>& angles,
+                                at::Tensor* cuda_workspace) {
+  at::cuda::CUDAGuard device_guard(prop.device());
+  const int64_t nsolve = prop.size(0) * prop.size(1);
+  const int nprop = prop.size(3);
+  const int numu = static_cast<int>(angles.size());
+  if (nsolve == 0) return;
+
+  double* d_umu = nullptr;
+  C10_CUDA_CHECK(cudaMalloc(&d_umu, numu * sizeof(double)));
+  C10_CUDA_CHECK(cudaMemcpy(d_umu, angles.data(), numu * sizeof(double),
+                             cudaMemcpyHostToDevice));
+  constexpr size_t kDisortStackBytes = 32 * 1024;
+  C10_CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, kDisortStackBytes));
+  const size_t work_size = c_disort_work_size(&state);
+
+  auto marker = torch::empty({prop.size(0), prop.size(1)}, prop.options());
+  auto prop_marker = prop.select(2, 0).select(2, 0);
+  at::TensorIteratorConfig config;
+  config.resize_outputs(false)
+      .check_all_same_dtype(true)
+      .add_output(marker)
+      .add_input(prop_marker)
+      .add_input(albedo);
+  auto iter = config.build();
+  auto* output_data = output.data_ptr<double>();
+  const auto* prop_data = prop.data_ptr<double>();
+  const auto* albedo_data = albedo.data_ptr<double>();
+
+  native::gpu_chunk_kernel<3>(
+      iter, work_size, cuda_workspace,
+      [=] GPU_LAMBDA(char* const[], const unsigned int[], int64_t index) {
+        pmem::pool_init();
+        disort_state d = state;
+        disort_output o{};
+        d.bc.albedo = albedo_data[index];
+        c_disort_state_alloc(&d);
+        c_disort_out_alloc(&d, &o);
+        const double* properties = prop_data + index * d.nlyr * nprop;
+        for (int layer = 0; layer < d.nlyr; ++layer) {
+          d.dtauc[layer] = properties[layer * nprop + IEX];
+          d.ssalb[layer] = properties[layer * nprop + ISS];
+          d.pmom[layer * (d.nmom_nstr + 1)] = 1.;
+          for (int moment = 0; moment < d.nmom; ++moment) {
+            d.pmom[layer * (d.nmom_nstr + 1) + moment + 1] =
+                moment + IPM < nprop ? properties[layer * nprop + moment + IPM]
+                                    : 0.;
+          }
+        }
+        for (int angle = 0; angle < numu; ++angle) d.umu[angle] = d_umu[angle];
+        c_disort(&d, &o, c_planck_func2);
+        for (int angle = 0; angle < numu; ++angle) {
+          output_data[(index * numu + angle) * 2] = o.albmed[angle];
+          output_data[(index * numu + angle) * 2 + 1] = o.trnmed[angle];
+        }
+      });
+  C10_CUDA_CHECK(cudaFree(d_umu));
+}
+
 }  // namespace disort
 
 namespace at::native {
 
 REGISTER_CUDA_DISPATCH(call_disort, &disort::call_disort_cuda);
+REGISTER_CUDA_DISPATCH(call_special_boundary,
+                       &disort::call_special_boundary_cuda);
 
 }  // namespace at::native
