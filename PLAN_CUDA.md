@@ -226,6 +226,27 @@ destruction, and shape growth/shrink. Re-run `latency_flux_*`, `batch_shape`,
 and `transfer_boundary`; retain the change only if it improves its intended
 metric without regressing `tp9_flux` or accuracy.
 
+#### Phase 1 checkpoint — 2026-09-29
+
+A prototype retained the immutable CUDA copies of `wvnmlo`, `wvnmhi`, `utau`,
+`umu`, `phi`, and `zd` on the owning `Disort` instance. It invalidated them on
+`reset()` and `release_cuda_workspace()`, and used transient copies for the
+conservative-scattering subset because that path owns a temporary state array.
+The focused CUDA agreement suite passed **98/98**.
+
+The TP9 geometry sweep did not show a material steady-state improvement: the
+clean event-timed rows were 0.329495 s for `(nwave, ncol)=(1,1)`, 1.112660 s
+for `(1,17)`, and 1.542806 s for `(256,1)`, within normal measurement noise of
+the Phase 0 values. The grid host-to-device transfer is microseconds to a few
+tenths of a millisecond, while each CUDA solve is 0.33–1.54 s. The `(256,17)`
+prototype sample ran concurrently with an accidental duplicate benchmark worker
+and had contention outliers, so it is deliberately excluded from comparison.
+
+The prototype is not retained: it fails this phase's required material-gain
+criterion and retains device allocations without improving TP9 throughput. The
+next optimization starts with Phase 2 profiler evidence for occupancy, per-thread
+workspace, stack, and register pressure.
+
 ### Phase 2 — improve GPU occupancy and memory behavior
 
 Use profiler evidence to decide whether the one-warp-per-solve policy,
