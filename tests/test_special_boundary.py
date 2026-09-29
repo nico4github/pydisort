@@ -103,7 +103,29 @@ def test_special_boundary_rejects_nonpositive_or_out_of_range_cosines(angles):
 @pytest.mark.skipif(
     not torch.cuda.is_available(), reason="no CUDA device available"
 )
-def test_special_boundary_rejects_cuda():
-    solver = Disort(options(backend="cuda"))
-    with pytest.raises(NotImplementedError, match="CPU-only"):
-        solver.medium_albedo_transmissivity(properties())
+def test_special_boundary_cuda_matches_cpu_for_batched_problem_13_cases():
+    prop = properties(nwave=2, ncol=2)
+    prop[1, :, 0, 0] = 0.5
+    prop[1, :, 0, 1] = 0.5
+    albedo = torch.tensor([[0.0, 0.25], [0.5, 0.75]], dtype=DTYPE)
+
+    cpu = Disort(options(nwave=2, ncol=2)).medium_albedo_transmissivity(
+        prop, albedo
+    )
+    cuda = Disort(
+        options(backend="cuda", nwave=2, ncol=2)
+    ).medium_albedo_transmissivity(prop.cuda(), albedo.cuda())
+    torch.cuda.synchronize()
+
+    assert cuda.albedo.device.type == "cuda"
+    assert cuda.transmissivity.device.type == "cuda"
+    assert cuda.albedo.shape == (2, 2, 2)
+    assert cuda.transmissivity.shape == (2, 2, 2)
+    assert torch.isfinite(cuda.albedo).all()
+    assert torch.isfinite(cuda.transmissivity).all()
+    torch.testing.assert_close(
+        cuda.albedo.cpu(), cpu.albedo, rtol=1e-6, atol=1e-8
+    )
+    torch.testing.assert_close(
+        cuda.transmissivity.cpu(), cpu.transmissivity, rtol=1e-6, atol=1e-8
+    )
