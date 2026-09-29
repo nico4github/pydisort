@@ -1,5 +1,6 @@
 // C/C++
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <vector>
 
@@ -7,6 +8,7 @@
 #include "disort.hpp"
 #include "disort_dispatch.hpp"
 #include "disort_formatter.hpp"
+#include "index.h"
 #include "vectorize.hpp"
 
 namespace disort {
@@ -390,6 +392,127 @@ torch::Tensor DisortImpl::gather_rad() const {
   }
 
   return result.view({options->nwave(), options->ncol(), nphi, ntau, numu});
+}
+
+SpecialBoundaryResult DisortImpl::medium_albedo_transmissivity(
+    torch::Tensor prop, torch::optional<torch::Tensor> albedo) {
+  validate_supported_configuration(options);
+
+  const auto& backend = options->backend();
+  TORCH_CHECK(
+      backend == "auto" || backend == "cpu" || backend == "cuda",
+      "DisortImpl::medium_albedo_transmissivity: backend must be one of "
+      "'auto', 'cpu', or 'cuda'");
+  if (backend == "cuda" || (backend == "auto" && prop.is_cuda())) {
+    throw UnsupportedCapabilityError(
+        "pydisort special-boundary output is currently CPU-only; use "
+        "backend='cpu'");
+  }
+
+  TORCH_CHECK(prop.device().is_cpu() && prop.scalar_type() == torch::kFloat64,
+              "DisortImpl::medium_albedo_transmissivity: prop must be a CPU "
+              "float64 tensor");
+  TORCH_CHECK(prop.dim() == 4,
+              "DisortImpl::medium_albedo_transmissivity: prop.dim() != 4");
+  TORCH_CHECK(prop.size(0) == options->nwave() &&
+                  prop.size(1) == options->ncol() &&
+                  prop.size(2) == options->ds().nlyr,
+              "DisortImpl::medium_albedo_transmissivity: prop shape must be "
+              "(nwave, ncol, nlyr, nprop)");
+  TORCH_CHECK(prop.size(3) >= 2,
+              "DisortImpl::medium_albedo_transmissivity: prop.size(3) < 2");
+  const auto flags = Vectorize<std::string>(options->flags().c_str(), " ,");
+  const bool thermal_requested =
+      std::find(flags.begin(), flags.end(), "planck") != flags.end();
+  TORCH_CHECK(!options->ds().flag.planck && !thermal_requested &&
+                  !options->general_source_enabled() &&
+                  !options->pseudo_spherical_enabled() &&
+                  !options->hapke_brdf_enabled(),
+              "DisortImpl::medium_albedo_transmissivity: thermal, general "
+              "source, pseudo-spherical, and BRDF options are unsupported");
+
+  const auto& angles = options->user_mu();
+  TORCH_CHECK(!angles.empty(),
+              "DisortImpl::medium_albedo_transmissivity: user_mu is empty");
+  for (double angle : angles) {
+    TORCH_CHECK(std::isfinite(angle) && angle > 0. && angle <= 1.,
+                "DisortImpl::medium_albedo_transmissivity: user_mu must "
+                "contain positive finite cosines no greater than one");
+  }
+
+  auto albedo_values = albedo.value_or(
+      torch::zeros({options->nwave(), options->ncol()}, prop.options()));
+  TORCH_CHECK(albedo_values.device().is_cpu() &&
+                  albedo_values.scalar_type() == torch::kFloat64 &&
+                  albedo_values.sizes() ==
+                      torch::IntArrayRef({options->nwave(), options->ncol()}),
+              "DisortImpl::medium_albedo_transmissivity: albedo must be a "
+              "CPU float64 tensor with shape (nwave, ncol)");
+
+  prop = prop.contiguous();
+  albedo_values = albedo_values.contiguous();
+  const int nprop = prop.size(3);
+  const int nsolve = options->nwave() * options->ncol();
+  const int numu = angles.size();
+  auto result = torch::empty({nsolve, numu, 2}, prop.options());
+
+  for (int index = 0; index < nsolve; ++index) {
+    const int wave = index / options->ncol();
+    const int column = index % options->ncol();
+    auto state = options->ds();
+    disort_output output = {};
+    state.flag.ibcnd = SPECIAL_BC;
+    state.flag.usrang = TRUE;
+    state.flag.usrtau = FALSE;
+    state.flag.onlyfl = FALSE;
+    state.flag.planck = FALSE;
+    state.flag.lamber = TRUE;
+    state.flag.general_source = FALSE;
+    state.flag.output_uum = FALSE;
+    state.flag.spher = FALSE;
+    state.flag.brdf_type = BRDF_NONE;
+    state.numu = numu;
+    state.nphi = 0;
+    state.bc.albedo = albedo_values[wave][column].item<double>();
+    state.bc.fbeam = 0.;
+    state.bc.fisot = 0.;
+    state.bc.fluor = 0.;
+    c_disort_state_alloc(&state);
+    c_disort_out_alloc(&state, &output);
+
+    const auto properties = prop[wave][column];
+    for (int layer = 0; layer < state.nlyr; ++layer) {
+      state.dtauc[layer] = properties[layer][IEX].item<double>();
+      state.ssalb[layer] = properties[layer][ISS].item<double>();
+      state.pmom[layer * (state.nmom_nstr + 1)] = 1.;
+      for (int moment = 0; moment < state.nmom; ++moment) {
+        state.pmom[layer * (state.nmom_nstr + 1) + moment + 1] =
+            moment + IPM < nprop
+                ? properties[layer][moment + IPM].item<double>()
+                : 0.;
+      }
+    }
+    for (int angle = 0; angle < numu; ++angle) {
+      state.umu[angle] = angles[angle];
+    }
+
+    const int status = c_disort(&state, &output, c_planck_func2);
+    if (status != 0) {
+      c_disort_out_free(&state, &output);
+      c_disort_state_free(&state);
+      TORCH_CHECK(false,
+                  "DisortImpl::medium_albedo_transmissivity: C-DISORT failed");
+    }
+    for (int angle = 0; angle < numu; ++angle) {
+      result[index][angle][0] = output.albmed[angle];
+      result[index][angle][1] = output.trnmed[angle];
+    }
+    c_disort_out_free(&state, &output);
+    c_disort_state_free(&state);
+  }
+
+  auto shaped = result.view({options->nwave(), options->ncol(), numu, 2});
+  return {shaped.select(3, 0), shaped.select(3, 1)};
 }
 
 //! \note Counting Disort Index

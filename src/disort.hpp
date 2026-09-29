@@ -175,6 +175,11 @@ class UnsupportedCapabilityError : public std::runtime_error {
   using std::runtime_error::runtime_error;
 };
 
+struct SpecialBoundaryResult {
+  torch::Tensor albedo;
+  torch::Tensor transmissivity;
+};
+
 void validate_supported_configuration(const DisortOptions& options);
 
 class DisortImpl : public torch::nn::Cloneable<DisortImpl> {
@@ -278,6 +283,15 @@ class DisortImpl : public torch::nn::Cloneable<DisortImpl> {
   //! dimensions are (nwave, ncol, nstr, ntau, numu), with the third axis
   //! indexed by Fourier order beginning at zero.
   torch::Tensor gather_fourier() const;
+
+  //! Calculate special-boundary medium albedo and transmissivity on CPU.
+  //!
+  //! Uses the positive incidence-angle cosines configured through user_mu().
+  //! The named tensors have shape (nwave, ncol, numu). This has a separate
+  //! result contract from forward(), whose buffers are not valid for SPECIAL_BC.
+  SpecialBoundaryResult medium_albedo_transmissivity(
+      torch::Tensor prop,
+      torch::optional<torch::Tensor> albedo = torch::nullopt);
 
   //! Calculate radiative flux or intensity
   /*!

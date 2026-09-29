@@ -18,6 +18,10 @@ void bind_disort_options(py::module &m);
 void bind_cdisort(py::module &m);
 
 PYBIND11_MODULE(pydisort, m) {
+  py::class_<disort::SpecialBoundaryResult>(m, "SpecialBoundaryResult")
+      .def_readonly("albedo", &disort::SpecialBoundaryResult::albedo)
+      .def_readonly("transmissivity",
+                    &disort::SpecialBoundaryResult::transmissivity);
   m.attr("__name__") = "pydisort";
   py::register_exception<disort::UnsupportedCapabilityError>(
       m, "UnsupportedCapabilityError", PyExc_NotImplementedError);
@@ -51,6 +55,23 @@ PYBIND11_MODULE(pydisort, m) {
       .def("gather_rad", &disort::DisortImpl::gather_rad)
       .def("gather_fourier", &disort::DisortImpl::gather_fourier)
       .def("release_cuda_workspace", &disort::DisortImpl::release_cuda_workspace)
+      .def(
+          "medium_albedo_transmissivity",
+          [](disort::DisortImpl &self, torch::Tensor prop,
+             torch::optional<torch::Tensor> albedo) {
+            while (prop.dim() < 4) {
+              prop = prop.unsqueeze(0);
+            }
+            if (albedo.has_value()) {
+              auto value = albedo.value();
+              while (value.dim() < 2) {
+                value = value.unsqueeze(0);
+              }
+              albedo = value;
+            }
+            return self.medium_albedo_transmissivity(prop, albedo);
+          },
+          py::arg("prop"), py::arg("albedo") = py::none())
       .def(
           "forward",
           [](disort::DisortImpl &self, torch::Tensor prop, std::string bname,

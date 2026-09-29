@@ -462,6 +462,15 @@ class DisortOptions:
         """
         ...
 
+class SpecialBoundaryResult:
+    """Medium albedo and transmissivity from a special-boundary calculation."""
+
+    albedo: torch.Tensor
+    """Medium albedo, shape (nwave, ncol, numu)."""
+
+    transmissivity: torch.Tensor
+    """Medium transmissivity, shape (nwave, ncol, numu)."""
+
 class Disort(nn.Module):
     """
     DISORT (Discrete Ordinates Radiative Transfer) module for radiative transfer calculations.
@@ -577,6 +586,22 @@ class Disort(nn.Module):
                   [0.0000, 2.3273],
                   [0.0000, 1.7241],
                   [0.0000, 1.1557]]]])
+        """
+        ...
+    def medium_albedo_transmissivity(
+        self, prop: torch.Tensor, albedo: Optional[torch.Tensor] = None
+    ) -> SpecialBoundaryResult:
+        """Calculate special-boundary medium albedo and transmissivity.
+
+        This CPU-only method uses the positive incidence-angle cosines in
+        DisortOptions.user_mu. The prop argument follows forward's optical
+        property layout and singleton insertion rules. Albedo, if provided,
+        is a CPU float64 tensor with shape (nwave, ncol).
+
+        It returns named albedo and transmissivity tensors, each with shape
+        (nwave, ncol, numu). It does not share forward's flux/radiance contract.
+        Thermal, general source, pseudo-spherical, and BRDF options are
+        unsupported. CUDA requests raise NotImplementedError.
         """
         ...
     def release_cuda_workspace(self) -> None:

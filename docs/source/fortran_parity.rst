@@ -22,8 +22,9 @@ The C-DISORT source has implementations for pseudo-spherical direct-beam
 geometry, general-source arrays, several BRDFs, and special-boundary
 albedo/transmissivity. These are not complete Python capabilities yet:
 
-* ``ibcnd`` has no typed Python result contract yet. Raw configuration raises
-  ``NotImplementedError``. Fourier output has typed CPU-only accessors.
+* ``ibcnd`` has the CPU-only typed
+  ``medium_albedo_transmissivity()`` result contract. Raw configuration still
+  raises ``NotImplementedError``; Fourier output also has CPU-only accessors.
 * ``general_source`` has a typed CPU-only input. CUDA requests raise
   ``NotImplementedError`` until source arrays are implemented and validated
   in the CUDA dispatch path.
@@ -85,9 +86,10 @@ unported solver-core changes from other DISORT versions.
        passes on CPU; CUDA requests explicitly raise ``NotImplementedError``.
    * - 7
      - Special boundary (``ibcnd``)
-     - Unsupported
-     - It changes outputs to albedo/transmissivity, so it needs a separate
-       result type after ordinary flux/radiance and surface contracts are firm.
+     - CPU-only
+     - ``medium_albedo_transmissivity()`` returns named CPU tensors for
+       positive user cosines. It matches C-DISORT Problem 13 beam references;
+       CUDA requests raise ``NotImplementedError`` pending H100 agreement.
    * - 8
      - ``DELTAMPLUS``
      - Deferred
@@ -193,31 +195,29 @@ Unsupported model names and parameter combinations must raise
 Work item 4: special-boundary calculations
 -------------------------------------------
 
-**Status:** Python unsupported; standalone CPU prerequisite validated on
-2026-09-29. The inventory remains five families / eight targets, with H100
-special-boundary CUDA validation pending.
+**Status:** CPU-only typed result. The inventory remains five families / eight
+targets, with direct Fortran bridge coverage and H100 CUDA agreement pending.
 
-The standalone Problem 13 investigation identified undersized output buffers
-for the internally doubled angle count, an overlapping in-place angle reversal,
-and a legacy uvspec overwrite of the first beam result with spherical values.
-The documented patch in ``cdisort_patches/0001-special-boundary.patch`` corrects
-these defects without changing the Python API.
+``Disort.medium_albedo_transmissivity(prop, albedo=None)`` returns a
+``SpecialBoundaryResult`` with named ``albedo`` and ``transmissivity`` tensors,
+each shaped ``(nwave, ncol, numu)``. It accepts only positive user cosines and
+uses a separate ``SPECIAL_BC`` state, so ordinary ``forward()`` flux/radiance
+allocations cannot be reused. Unsupported thermal, general-source,
+pseudo-spherical, and BRDF combinations raise an error; CUDA requests raise
+``NotImplementedError``.
 
-The standalone lifecycle regression passes 16 cases (0 skips, 0 failures) under
-AddressSanitizer and UndefinedBehaviorSanitizer. Problem 13a/13c atmospheres
-agree with ordinary unit-flux beam solutions (13b/13d) at ``1e-6`` relative
-plus ``1e-8`` absolute tolerance. Coverage includes one/two layers, one/three
-incident angles, black/reflecting surfaces, zero/two azimuths, and repeated
-calls. This is C-DISORT reference coverage, not a direct Fortran comparison.
-The next step is the separate typed CPU method/result, dedicated pytest,
-bridge integration, and explicit CUDA rejection.
+The dedicated pytest compares Problem 13a/13c atmospheres with ordinary
+unit-flux beam solutions (13b/13d) at ``1e-6`` relative plus ``1e-8`` absolute
+tolerance. It also covers batched wave/column inputs, black-to-reflecting
+surfaces, invalid cosines, and CUDA rejection. The standalone lifecycle
+regression remains 16 passes, 0 skips, and 0 failures under AddressSanitizer
+and UndefinedBehaviorSanitizer. This is C-DISORT reference coverage, not a
+direct Fortran comparison.
 
-``ibcnd`` changes the calculation and output contract: it returns medium
-albedo and transmissivity rather than the normal flux/radiance result. Give it
-its own method and typed result instead of overloading ``forward``. Validate
-against the special-boundary C-DISORT/Fortran cases, include invalid
-combinations such as user angles, and add CPU/H100 agreement before declaring
-CUDA support.
+The C-DISORT patch in ``cdisort_patches/0001-special-boundary.patch`` fixes the
+internally doubled angle buffers, in-place reversal, and legacy overwrite that
+previously prevented a safe API. Direct Fortran bridge validation and CPU/H100
+agreement are still required before CUDA support can be declared.
 
 Deferred items
 --------------

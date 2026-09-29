@@ -435,16 +435,17 @@ The standalone C-DISORT Problem 13 regression passes **16 cases, 0 skips,
 0 failures** under AddressSanitizer and UndefinedBehaviorSanitizer. The
 shortcut agrees with ordinary beam solutions at `1e-6` relative plus `1e-8`
 absolute tolerance. See [the documented core patch](cdisort_patches/README.md)
-for reproduction and scope. Python `ibcnd` remains unsupported pending its
-separate typed result API; no special-boundary CUDA support is claimed.
+for reproduction and scope. Python
+`medium_albedo_transmissivity(prop, albedo=None)` now returns named CPU
+`albedo` and `transmissivity` tensors. Raw `ibcnd` configuration and CUDA
+special-boundary requests remain unsupported.
 
 The CUDA build (`CUDA=ON`, architecture `90`) and
 `python -m pip install --no-build-isolation .` passed using the development
 `.venv`, Torch `2.10.0+cu130`, CUDA `13.0`, and NVIDIA H100 NVL.
-`python -m pytest tests/ -v -rs`: **228 passed, 0 skipped, 0 failed**.
-`ctest --test-dir build --output-on-failure`: **26 passed, 0 skipped, 0 failed**.
-`pre-commit run --all-files`, `git diff --check`, three documentation extension
-unit tests, and Sphinx HTML/doctest builds with `-W` passed. No Python source
-changed, so separate Ruff/mypy runs were not applicable. Benchmark checks were
-not run because benchmark tooling was unchanged; direct Fortran and
+`python -m pytest tests/ -v -rs`: **235 passed, 0 skipped, 0 failed**.
+`ctest --test-dir build --output-on-failure`: **27 passed, 0 skipped, 0 failed**.
+`pre-commit run --all-files`, `git diff --check`, Ruff, mypy, three documentation
+extension unit tests, and Sphinx HTML/doctest builds with `-W` passed. Benchmark
+checks were not run because benchmark tooling was unchanged; direct Fortran and
 special-boundary H100 agreement remain pending.

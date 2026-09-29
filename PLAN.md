@@ -21,34 +21,28 @@ the table in `docs/source/fortran_parity.rst`: general-source arrays,
 Fourier-component output, four BRDF models, special-boundary output, and
 `DELTAMPLUS`. Update both totals whenever a target moves status.
 
-## Special-boundary (`ibcnd`) investigation — 2026-09-29
+## Special-boundary (`ibcnd`) status — 2026-09-29
 
-`ibcnd=1` remains an explicit unsupported capability. It is not compatible with
-pydisort's ordinary `forward()` contract: C-DISORT returns medium albedo and
-transmissivity by user cosine rather than the usual flux/radiance grids.
+`Disort.medium_albedo_transmissivity(prop, albedo=None)` is a CPU-only typed
+special-boundary calculation. It returns a `SpecialBoundaryResult` whose
+`albedo` and `transmissivity` tensors have shape `(nwave, ncol, numu)`, with
+positive incidence-angle cosines from `DisortOptions.user_mu()`. The ordinary
+`forward()` contract remains separate and raw `ibcnd` configuration continues
+to raise `NotImplementedError`.
 
-An attempted CPU-only typed prototype configured C-DISORT's special-boundary
-state and read its `albmed`/`trnmed` buffers. For the one-layer Problem 13a
-configuration at `mu=0.5`, C-DISORT computed the plausible intermediate values
-`albedo=0.0378` and `transmissivity=0.9425`. Two execution routes were then
-rejected:
+The method allocates an isolated C-DISORT `SPECIAL_BC` state per solve; it does
+not reuse ordinary flux/radiance buffers. Its dedicated pytest compares
+Problem 13a/13c atmospheres against ordinary unit-flux beam solutions
+(13b/13d), including batched wave/column inputs, several albedos, and two
+incidence cosines at `1e-6` relative plus `1e-8` absolute tolerance. Invalid
+cosines are rejected and CUDA requests raise `NotImplementedError`.
 
-- Calling the normal `forward()` route caused `free(): invalid pointer` during
-  cleanup. Its ordinary radiance/flux buffers do not share the special-boundary
-  allocation layout.
-- A direct C-DISORT call that bypassed `forward()` still segfaulted before it
-  could safely return. The prototype was removed and the stable CMake library
-  rebuilt; no public API or bridge support was retained.
+The standalone regression in `tests/cdisort213/test_cdisort_special_boundary.c`
+passes 16 cases under AddressSanitizer/UndefinedBehaviorSanitizer. The
+documented patch fixes undersized internally doubled angle buffers, an
+overlapping angle reversal, and a legacy uvspec overwrite of the first beam
+result. See `cdisort_patches/README.md` for provenance and reproduction.
 
-The standalone prerequisite is now complete: the regression in
-`tests/cdisort213/test_cdisort_special_boundary.c` passes 16 cases under
-AddressSanitizer/UndefinedBehaviorSanitizer and agrees with ordinary beam
-solutions for the Problem 13a/13c atmospheres. Three core defects were fixed:
-output buffers missed the internal angle doubling, angle reversal overwrote
-its input, and a legacy uvspec customization replaced the first beam result.
-See `cdisort_patches/README.md` for provenance and reproduction commands.
-
-Next step: add a typed CPU special-boundary method/result, dedicated pytest
-coverage, bridge integration, and an explicit CUDA `NotImplementedError`
-guard. Do not reuse ordinary `forward()` buffers. Python support remains
-unsupported, and the five-family/eight-target inventory is unchanged.
+Remaining work: direct Fortran bridge coverage and CPU/H100 CUDA agreement
+before special-boundary CUDA support can be declared. The five-family,
+eight-target inventory is unchanged while the target is CPU-only.

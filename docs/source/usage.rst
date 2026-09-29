@@ -190,7 +190,10 @@ intensity-correction and diagnostic flags.
 
 Recognizing a flag name is not the same as exposing a complete feature:
 
-* ``ibcnd`` is recognized, but ``forward`` rejects the special-boundary mode.
+* ``ibcnd`` is recognized, but raw ``forward`` configuration rejects the
+  special-boundary mode. Use
+  ``medium_albedo_transmissivity(prop, albedo=None)`` on CPU for its separate
+  named albedo/transmissivity result; CUDA requests are rejected.
 * ``spher`` must be configured through
   ``DisortOptions.pseudo_spherical(radius, level_altitudes)``. The raw flag is
   rejected because it cannot supply the required geometry.
