@@ -294,3 +294,40 @@ latency; throughput in solved `(wavelength,column)` elements per second; and
 pydisort end-to-end time. Relative speed-ups are secondary and always name the
 baseline and whether it is scalar or batched. No benchmark result is published
 from a `SKIP` or `FAIL` case.
+
+## Phase 5A — special-boundary CUDA result support
+
+**Status:** implementation scaffold committed; validation has not yet begun.
+
+This phase promotes `Disort.medium_albedo_transmissivity()` from CPU-only to
+CPU/CUDA support without changing its public result contract. It is separate
+from ordinary flux dispatch because C-DISORT `SPECIAL_BC` allocates doubled
+user-angle work arrays and produces `ALBMED`/`TRNMED`, not flux/radiance
+buffers.
+
+1. Audit the dedicated CUDA dispatcher against the CPU implementation. One
+   GPU element represents one `(nwave, ncol)` solve, constructs an isolated
+   `SPECIAL_BC` state, copies positive user cosines once, populates optical
+   properties, and writes `(numu, 2)` albedo/transmissivity output. It must
+   use `c_disort_work_size()` and the existing per-thread workspace cache.
+2. Add CUDA-gated tests before compiling: Problem 13a and 13c, multiple user
+   cosines, batched waves/columns, nonzero surface albedo, output device and
+   shape, finite values, and CPU/H100 agreement at `rtol=1e-6`, `atol=1e-8`.
+   The former CUDA-rejection test changes only after this evidence passes.
+3. Compile once in two checkpoints. Build `disort_cuda_release` first; only
+   after it succeeds rebuild the pybind extension once with
+   `CUDA=ON CMAKE_CUDA_ARCHITECTURES=90 python -m pip install
+   --no-build-isolation .`. Never run a second build while the first exists.
+4. Run a one-case CPU/CUDA smoke test after installation. Verify result device,
+   shape, finiteness, synchronization, and agreement before running pytest.
+5. Run focused special-boundary CPU/CUDA pytest, CUDA backend tests, the
+   C-DISORT lifecycle CTest, C/C++ hooks, Ruff, mypy, and `git diff --check`.
+   A failure remains `FAIL`; no CPU fallback may be reported as CUDA support.
+6. Only after all checks pass, update README, PLAN, and Fortran-parity docs
+   with H100 architecture 90, exact tolerance, and PASS/SKIP/FAIL counts.
+   Commit implementation corrections, tests, and documentation separately.
+
+**Decision gate:** retain the feature only if the direct device implementation
+passes the smoke test and agreement suite. If the per-thread C-DISORT path
+cannot do so safely within the existing workspace model, revert its scaffold
+and retain the explicit CUDA `NotImplementedError`.
