@@ -1,0 +1,2 @@
+# Preserve whitespace in context and removed lines of upstream patches.
+cdisort_patches/*.patch -whitespace

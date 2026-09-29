@@ -3,7 +3,8 @@ string(TOUPPER ${CMAKE_BUILD_TYPE} buildu)
 
 # The cdisort impl headers are C++ (DISPATCH_MACRO inline), so the C test
 # drivers are compiled as C++.
-set_source_files_properties(test_cdisort.c test_cdisort_09.c print_test.c
+set_source_files_properties(test_cdisort.c test_cdisort_09.c
+  test_cdisort_special_boundary.c print_test.c
   PROPERTIES LANGUAGE CXX)
 
 # Macro to create test for a given source file
@@ -27,3 +28,6 @@ endmacro()
 # Create two separate test executables, second one for large scale test
 cdisort_setup_test(test_cdisort test_cdisort.c)
 cdisort_setup_test(test_cdisort_09 test_cdisort_09.c)
+
+# Problem 13 lifecycle and ordinary-beam reference agreement.
+cdisort_setup_test(test_cdisort_special_boundary test_cdisort_special_boundary.c)

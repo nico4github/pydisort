@@ -1,0 +1,60 @@
+diff --git a/cdisort213/albtrans.h b/cdisort213/albtrans.h
+index 64646f2..1def58b 100644
+--- a/cdisort213/albtrans.h
++++ b/cdisort213/albtrans.h
+@@ -228,12 +228,9 @@ DISPATCH_MACRO inline void c_albtrans(disort_state  *ds,
+     c_print_albtrans(ds,out);
+   }
+   
+-  /* CE: I want to output the the spherical albedo and transmittance, and use the */
+-  /* variables ALBMED and TRNMED for this. They are not used so far otherwise in uvspec */
+-  /* If somebody needs these variables I will include new variables for sphtrn and sphalb*/
+-  ALBMED(1)=sphalb;
+-  TRNMED(1)=sphtrn;
+-  
++  /* Preserve all beam-angle results. Spherical quantities are internal
++   * to the surface correction, not replacements for ALBMED(1)/TRNMED(1).
++   */
+   return;
+ }
+ 
+diff --git a/cdisort213/alloc.h b/cdisort213/alloc.h
+index c71284f..ccf5853 100644
+--- a/cdisort213/alloc.h
++++ b/cdisort213/alloc.h
+@@ -192,6 +192,10 @@ DISPATCH_MACRO inline void c_disort_out_alloc(disort_state  *ds,
+   if ( (!ds->flag.usrang || ds->flag.onlyfl)) {
+     nu = ds->nstr;
+   }
++  /* c_disort doubles user angles for SPECIAL_BC before writing outputs. */
++  if (ds->flag.usrang && ds->flag.ibcnd == SPECIAL_BC) {
++    nu *= 2;
++  }
+ #ifdef __CUDA_ARCH__
+   if (ds->flag.onlyfl) {
+     out->uu = NULL;
+@@ -208,8 +212,8 @@ DISPATCH_MACRO inline void c_disort_out_alloc(disort_state  *ds,
+     out->uum = c_dbl_vector(0,ds->nstr*nu*ds->ntau,"out->uum");
+ 
+   if (ds->flag.ibcnd == SPECIAL_BC) {
+-    out->albmed = c_dbl_vector(0,ds->numu,"out->albmed");
+-    out->trnmed = c_dbl_vector(0,ds->numu,"out->trnmed");
++    out->albmed = c_dbl_vector(0,nu,"out->albmed");
++    out->trnmed = c_dbl_vector(0,nu,"out->trnmed");
+   }
+   else {
+     out->albmed = NULL;
+diff --git a/cdisort213/disort_set.h b/cdisort213/disort_set.h
+index 1390a80..c7b5aa8 100644
+--- a/cdisort213/disort_set.h
++++ b/cdisort213/disort_set.h
+@@ -238,7 +238,8 @@ DISPATCH_MACRO inline void c_disort_set(disort_state *ds,
+       UMU(iu+ds->numu/2) = UMU(iu);
+     }
+     for (iu = 1; iu <= ds->numu/2; iu++) {
+-      UMU(iu) = -UMU((ds->numu/2)+1-iu);
++      /* Read the preserved upper half, not the lower half being overwritten. */
++      UMU(iu) = -UMU(ds->numu+1-iu);
+     }
+   }
+ 

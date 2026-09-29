@@ -228,12 +228,9 @@ DISPATCH_MACRO inline void c_albtrans(disort_state  *ds,
     c_print_albtrans(ds,out);
   }
   
-  /* CE: I want to output the the spherical albedo and transmittance, and use the */
-  /* variables ALBMED and TRNMED for this. They are not used so far otherwise in uvspec */
-  /* If somebody needs these variables I will include new variables for sphtrn and sphalb*/
-  ALBMED(1)=sphalb;
-  TRNMED(1)=sphtrn;
-  
+  /* Preserve all beam-angle results. Spherical quantities are internal
+   * to the surface correction, not replacements for ALBMED(1)/TRNMED(1).
+   */
   return;
 }
 

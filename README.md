@@ -428,3 +428,23 @@ Not sure where to start? Join our discord and we will help you get started!
 
 <a href="https://discord.gg/ZKBZg5K2"><img src="docs/img/discord.png" width="150"/></a>
 &nbsp;&nbsp; <a target="_blank" href="https://bmc.link/zoeyzyhu"><img src="docs/img/bmc_white.png" alt="Buy me a coffee" width="170"/></a>
+
+### Special-boundary core validation (2026-09-29)
+
+The standalone C-DISORT Problem 13 regression passes **16 cases, 0 skips,
+0 failures** under AddressSanitizer and UndefinedBehaviorSanitizer. The
+shortcut agrees with ordinary beam solutions at `1e-6` relative plus `1e-8`
+absolute tolerance. See [the documented core patch](cdisort_patches/README.md)
+for reproduction and scope. Python `ibcnd` remains unsupported pending its
+separate typed result API; no special-boundary CUDA support is claimed.
+
+The CUDA build (`CUDA=ON`, architecture `90`) and
+`python -m pip install --no-build-isolation .` passed using the development
+`.venv`, Torch `2.10.0+cu130`, CUDA `13.0`, and NVIDIA H100 NVL.
+`python -m pytest tests/ -v -rs`: **228 passed, 0 skipped, 0 failed**.
+`ctest --test-dir build --output-on-failure`: **26 passed, 0 skipped, 0 failed**.
+`pre-commit run --all-files`, `git diff --check`, three documentation extension
+unit tests, and Sphinx HTML/doctest builds with `-W` passed. No Python source
+changed, so separate Ruff/mypy runs were not applicable. Benchmark checks were
+not run because benchmark tooling was unchanged; direct Fortran and
+special-boundary H100 agreement remain pending.

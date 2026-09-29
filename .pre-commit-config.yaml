@@ -23,6 +23,8 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        # Patch context must retain the bundled source's original whitespace.
+        exclude: ^cdisort_patches/.*\.patch$
         name: Trim Trailing Whitespace
         entry: trailing-whitespace-fixer
         language: python

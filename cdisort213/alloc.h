@@ -192,6 +192,10 @@ DISPATCH_MACRO inline void c_disort_out_alloc(disort_state  *ds,
   if ( (!ds->flag.usrang || ds->flag.onlyfl)) {
     nu = ds->nstr;
   }
+  /* c_disort doubles user angles for SPECIAL_BC before writing outputs. */
+  if (ds->flag.usrang && ds->flag.ibcnd == SPECIAL_BC) {
+    nu *= 2;
+  }
 #ifdef __CUDA_ARCH__
   if (ds->flag.onlyfl) {
     out->uu = NULL;
@@ -208,8 +212,8 @@ DISPATCH_MACRO inline void c_disort_out_alloc(disort_state  *ds,
     out->uum = c_dbl_vector(0,ds->nstr*nu*ds->ntau,"out->uum");
 
   if (ds->flag.ibcnd == SPECIAL_BC) {
-    out->albmed = c_dbl_vector(0,ds->numu,"out->albmed");
-    out->trnmed = c_dbl_vector(0,ds->numu,"out->trnmed");
+    out->albmed = c_dbl_vector(0,nu,"out->albmed");
+    out->trnmed = c_dbl_vector(0,nu,"out->trnmed");
   }
   else {
     out->albmed = NULL;

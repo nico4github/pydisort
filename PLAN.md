@@ -40,10 +40,15 @@ rejected:
   could safely return. The prototype was removed and the stable CMake library
   rebuilt; no public API or bridge support was retained.
 
-Next step: create a minimal standalone C reproduction of C-DISORT Problem 13a
-using this fork's exact `c_disort_state_alloc`, `c_disort_out_alloc`,
-`c_disort`, and free sequence. Compare it with the upstream self-test's
-Problem 13 setup to identify the required state flags and allocation invariants.
-Only after that program exits cleanly and matches 13a/13c should pydisort add a
-typed CPU API, dedicated pytest coverage, bridge integration, and an explicit
-CUDA `NotImplementedError` guard.
+The standalone prerequisite is now complete: the regression in
+`tests/cdisort213/test_cdisort_special_boundary.c` passes 16 cases under
+AddressSanitizer/UndefinedBehaviorSanitizer and agrees with ordinary beam
+solutions for the Problem 13a/13c atmospheres. Three core defects were fixed:
+output buffers missed the internal angle doubling, angle reversal overwrote
+its input, and a legacy uvspec customization replaced the first beam result.
+See `cdisort_patches/README.md` for provenance and reproduction commands.
+
+Next step: add a typed CPU special-boundary method/result, dedicated pytest
+coverage, bridge integration, and an explicit CUDA `NotImplementedError`
+guard. Do not reuse ordinary `forward()` buffers. Python support remains
+unsupported, and the five-family/eight-target inventory is unchanged.

@@ -238,7 +238,8 @@ DISPATCH_MACRO inline void c_disort_set(disort_state *ds,
       UMU(iu+ds->numu/2) = UMU(iu);
     }
     for (iu = 1; iu <= ds->numu/2; iu++) {
-      UMU(iu) = -UMU((ds->numu/2)+1-iu);
+      /* Read the preserved upper half, not the lower half being overwritten. */
+      UMU(iu) = -UMU(ds->numu+1-iu);
     }
   }
 

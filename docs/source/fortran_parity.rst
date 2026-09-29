@@ -22,8 +22,8 @@ The C-DISORT source has implementations for pseudo-spherical direct-beam
 geometry, general-source arrays, several BRDFs, and special-boundary
 albedo/transmissivity. These are not complete Python capabilities yet:
 
-* ``ibcnd`` and ``output_uum`` have no typed Python inputs or result
-  accessors yet. Raw configuration raises ``NotImplementedError``.
+* ``ibcnd`` has no typed Python result contract yet. Raw configuration raises
+  ``NotImplementedError``. Fourier output has typed CPU-only accessors.
 * ``general_source`` has a typed CPU-only input. CUDA requests raise
   ``NotImplementedError`` until source arrays are implemented and validated
   in the CUDA dispatch path.
@@ -31,7 +31,8 @@ albedo/transmissivity. These are not complete Python capabilities yet:
   ``pseudo_spherical`` option. Raw ``spher`` configuration raises
   ``NotImplementedError`` so it cannot appear to work without its required
   radius and level-altitude inputs.
-* BRDF selection is absent from the Python API; the state uses ``BRDF_NONE``.
+* The fixed-parameter Hapke BRDF has a typed CPU-only option; other BRDF
+  models remain unsupported.
 
 Tracked remaining capability count and priority
 -----------------------------------------------
@@ -192,14 +193,24 @@ Unsupported model names and parameter combinations must raise
 Work item 4: special-boundary calculations
 -------------------------------------------
 
-**Status:** unsupported after a CPU prototype investigation on 2026-09-29.
+**Status:** Python unsupported; standalone CPU prerequisite validated on
+2026-09-29. The inventory remains five families / eight targets, with H100
+special-boundary CUDA validation pending.
 
-A typed prototype produced Problem 13a's intermediate ``albedo=0.0378`` and
-``transmissivity=0.9425`` at ``mu=0.5``, but normal ``forward()`` cleanup
-failed with ``free(): invalid pointer`` and an isolated direct C-DISORT route
-segfaulted. The prototype was removed. A standalone C reproduction of the
-C-DISORT Problem 13 allocation/run/free sequence must pass before this API is
-reintroduced.
+The standalone Problem 13 investigation identified undersized output buffers
+for the internally doubled angle count, an overlapping in-place angle reversal,
+and a legacy uvspec overwrite of the first beam result with spherical values.
+The documented patch in ``cdisort_patches/0001-special-boundary.patch`` corrects
+these defects without changing the Python API.
+
+The standalone lifecycle regression passes 16 cases (0 skips, 0 failures) under
+AddressSanitizer and UndefinedBehaviorSanitizer. Problem 13a/13c atmospheres
+agree with ordinary unit-flux beam solutions (13b/13d) at ``1e-6`` relative
+plus ``1e-8`` absolute tolerance. Coverage includes one/two layers, one/three
+incident angles, black/reflecting surfaces, zero/two azimuths, and repeated
+calls. This is C-DISORT reference coverage, not a direct Fortran comparison.
+The next step is the separate typed CPU method/result, dedicated pytest,
+bridge integration, and explicit CUDA rejection.
 
 ``ibcnd`` changes the calculation and output contract: it returns medium
 albedo and transmissivity rather than the normal flux/radiance result. Give it
