@@ -78,8 +78,10 @@ unported solver-core changes from other DISORT versions.
      - Add only after the shared typed BRDF option and RPV test harness exist.
    * - 6
      - Hapke BRDF
-     - Unsupported
-     - Add only after the shared typed BRDF option and RPV test harness exist.
+     - CPU-only
+     - ``hapke_brdf()`` exposes C-DISORT's fixed-parameter Hapke model
+       (``B0=1``, ``HH=0.06``, ``W=0.6``). Its Problem 6d direct reference
+       passes on CPU; CUDA requests explicitly raise ``NotImplementedError``.
    * - 7
      - Special boundary (``ibcnd``)
      - Unsupported
@@ -173,13 +175,17 @@ and CPU/H100 CUDA agreement on the same nonzero source.
 Work item 3: BRDF surface models
 --------------------------------
 
-**Status:** planned.
+**Status:** Hapke is CPU-only. ``DisortOptions.hapke_brdf()`` selects the
+fixed C-DISORT Hapke model without exposing raw state or accepting a Fortran
+``brdf_type`` integer. The CPU reference is C-DISORT Problem 6d: direct flux
+is ``[100.0, 36.7879, 13.5335]`` and upward flux is
+``[0.670783, 1.39084, 3.31655]`` at optical depths ``[0, 0.5, 1]``. The
+published values are rounded, so the dedicated test uses ``5e-6`` relative
+tolerance. CUDA requests raise ``NotImplementedError`` pending a CUDA
+implementation and CPU/H100 agreement.
 
-Expose each supported model through a typed surface option rather than raw
-state access. Start with a single C-DISORT model and its required parameters;
-do not claim other models from their presence in C headers. The first chosen
-model needs a Fortran/C-DISORT reference such as DISORT Problem 6d-h, an
-explicit Lambertian limiting test where applicable, and CPU/H100 agreement.
+Expose each later model through a typed surface option rather than raw state
+access. Do not claim other models from their presence in C headers.
 Unsupported model names and parameter combinations must raise
 ``NotImplementedError``.
 

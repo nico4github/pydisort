@@ -60,6 +60,11 @@ DisortOptionsImpl& DisortOptionsImpl::fourier_components() {
   return *this;
 }
 
+DisortOptionsImpl& DisortOptionsImpl::hapke_brdf() {
+  hapke_brdf_enabled_ = true;
+  return *this;
+}
+
 DisortOptionsImpl& DisortOptionsImpl::general_source(
     torch::Tensor computational, torch::Tensor user) {
   TORCH_CHECK(
@@ -188,6 +193,9 @@ void DisortImpl::reset() {
   options->ds().radius = options->pseudo_spherical_radius();
   options->ds().flag.general_source = options->general_source_enabled();
   options->ds().flag.output_uum = options->fourier_components_enabled();
+  options->ds().flag.brdf_type =
+      options->hapke_brdf_enabled() ? BRDF_HAPKE : BRDF_NONE;
+  if (options->hapke_brdf_enabled()) options->ds().flag.lamber = false;
 
   options->ds().accur = options->accur();
 
@@ -415,6 +423,10 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
   if (options->general_source_enabled() && cuda_requested) {
     throw UnsupportedCapabilityError(
         "pydisort general_source is currently CPU-only; use backend='cpu'");
+  }
+  if (options->hapke_brdf_enabled() && cuda_requested) {
+    throw UnsupportedCapabilityError(
+        "pydisort Hapke BRDF is currently CPU-only; use backend='cpu'");
   }
   if (options->fourier_components_enabled() && cuda_requested) {
     throw UnsupportedCapabilityError(

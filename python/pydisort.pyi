@@ -401,6 +401,14 @@ class DisortOptions:
           pydisort.DisortOptions: class object
         """
         ...
+    def hapke_brdf(self) -> DisortOptions:
+        """Enable C-DISORT's fixed-parameter Hapke surface BRDF on CPU.
+
+        This model uses the published C-DISORT constants ``B0=1``,
+        ``HH=0.06``, and ``W=0.6``. CUDA requests raise
+        ``NotImplementedError``.
+        """
+        ...
     def fourier_components(self) -> DisortOptions:
         """Enable CPU-only azimuthal Fourier-component output.
 

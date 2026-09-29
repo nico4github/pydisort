@@ -40,6 +40,8 @@ void bind_disort_options(py::module& m) {
       .def("pseudo_spherical", &disort::DisortOptionsImpl::pseudo_spherical,
            py::arg("radius"), py::arg("level_altitudes"),
            py::return_value_policy::reference)
+      .def("hapke_brdf", &disort::DisortOptionsImpl::hapke_brdf,
+           py::return_value_policy::reference)
       .def("fourier_components", &disort::DisortOptionsImpl::fourier_components,
            py::return_value_policy::reference)
       .def("general_source", &disort::DisortOptionsImpl::general_source,

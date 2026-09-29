@@ -280,3 +280,49 @@ def test_fourier_components_reject_cuda_dispatch():
 
     with pytest.raises(NotImplementedError, match="Fourier-component output"):
         solver.forward(prop, fbeam=torch.ones((1, 1), dtype=torch.float64))
+
+
+def test_hapke_brdf_matches_cdisort_problem_6d_fluxes():
+    """The typed Hapke option reproduces C-DISORT's fixed Problem 6d model."""
+    op = DisortOptions().flags("usrtau,usrang,quiet")
+    op.ds().nlyr = 1
+    op.ds().nstr = op.ds().nmom = op.ds().nphase = 16
+    op.user_tau(np.array([0.0, 0.5, 1.0]))
+    op.user_mu(np.array([-1.0, -0.1, 0.1, 1.0]))
+    op.user_phi(np.array([90.0]))
+    op.hapke_brdf()
+    solver = Disort(op)
+
+    prop = torch.zeros((1, 1, 1, 18), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    result = solver.forward(
+        prop,
+        umu0=torch.tensor([0.5], dtype=torch.float64),
+        phi0=torch.tensor([0.0], dtype=torch.float64),
+        fbeam=torch.tensor([[200.0]], dtype=torch.float64),
+    )
+
+    fluxes = solver.gather_flx()
+    assert_allclose(
+        fluxes[0, 0, :, RFLDIR], [100.0, 36.7879, 13.5335], rtol=5e-6
+    )
+    assert_allclose(
+        fluxes[0, 0, :, FLUP], [0.670783, 1.39084, 3.31655], rtol=5e-6
+    )
+    assert_allclose(result[0, 0, :, 0], fluxes[0, 0, :, FLUP], rtol=0, atol=0)
+
+
+def test_hapke_brdf_rejects_cuda_dispatch():
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA is unavailable")
+
+    op = DisortOptions().flags("onlyfl,quiet").backend("cuda")
+    op.ds().nlyr = 1
+    op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
+    op.hapke_brdf()
+    solver = Disort(op)
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 0.1
+
+    with pytest.raises(NotImplementedError, match="Hapke BRDF"):
+        solver.forward(prop, fbeam=torch.ones((1, 1), dtype=torch.float64))

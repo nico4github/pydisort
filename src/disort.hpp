@@ -125,6 +125,7 @@ struct DisortOptionsImpl {
   DisortOptionsImpl& general_source(torch::Tensor computational,
                                     torch::Tensor user);
   DisortOptionsImpl& fourier_components();
+  DisortOptionsImpl& hapke_brdf();
 
   bool pseudo_spherical_enabled() const noexcept {
     return pseudo_spherical_enabled_;
@@ -141,6 +142,7 @@ struct DisortOptionsImpl {
   bool fourier_components_enabled() const noexcept {
     return fourier_components_enabled_;
   }
+  bool hapke_brdf_enabled() const noexcept { return hapke_brdf_enabled_; }
   const torch::Tensor& general_source_computational() const noexcept {
     return general_source_computational_;
   }
@@ -156,6 +158,7 @@ struct DisortOptionsImpl {
   torch::Tensor general_source_computational_;
   torch::Tensor general_source_user_;
   bool fourier_components_enabled_ = false;
+  bool hapke_brdf_enabled_ = false;
 };
 
 //! Shared pointer to DisortOptionsImpl
