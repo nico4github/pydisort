@@ -19,8 +19,9 @@ input transfer, and output transfer.
 1. Every benchmark case is defined once in code and has a stable identifier,
    physical inputs, requested outputs, dtype, and a Fortran v4 DP reference
    fixture. The legacy Fortran result is the physical source of truth.
-2. A result has three independent checks: correctness, steady-state device
-   throughput, and end-to-end application time. Do not quote one as another.
+2. A result has four independent checks: Fortran v4 DP CPU steady-state time,
+   pydisort CPU steady-state time, pydisort GPU steady-state throughput, and
+   pydisort end-to-end application time. Do not quote one as another.
 3. Timed CUDA regions use CUDA events on the active stream and synchronize
    only at the measurement boundary. CPU regions use a monotonic wall clock.
    Include warm-ups and report the median plus minimum/maximum of at least five
@@ -53,8 +54,9 @@ human-readable summary. It must provide these timing modes:
 
 | Mode | Included work | Purpose |
 | --- | --- | --- |
-| `cpu_steady` | `forward()` with CPU-resident tensors | CPU solver throughput and thread scaling |
-| `gpu_steady` | CUDA-resident `forward()` measured with CUDA events | kernel plus CUDA dispatch throughput |
+| `fortran_cpu_steady` | legacy Fortran v4 DP solve loop timed inside its benchmark driver | authoritative CPU baseline, excluding process startup and file output |
+| `python_cpu_steady` | pydisort `forward()` with CPU-resident tensors | Python/C++ CPU throughput and thread scaling |
+| `python_gpu_steady` | CUDA-resident pydisort `forward()` measured with CUDA events | CUDA kernel plus dispatch throughput |
 | `gpu_first_call` | construction and first CUDA `forward()` | allocation/cache warm-up cost |
 | `gpu_h2d` | pinned host-to-device input transfer only | transfer bandwidth and staging overhead |
 | `gpu_d2h` | required output transfer only | result-return bandwidth |
@@ -107,6 +109,30 @@ base CPU inputs match that dump, and compares the base CPU result to those
 Fortran outputs. It writes the selected case name and hashes to the benchmark
 record. A missing, incomplete, or nonzero Fortran run is `FAIL`, never an
 assumed reference.
+
+For each fixture, add a companion non-legacy Fortran timing driver in
+`disort-pyf`. It calls the unmodified v4 DP solver repeatedly with the same
+validated inputs, measures only the solve loop with `system_clock` or
+`cpu_time`, and prints elapsed seconds, solve count, and flux/radiance checksum
+in machine-readable form. Configuration, allocation policy, warm-up count, and
+repetition count must be recorded. The driver emits no diagnostic files inside
+the timed loop. Its final checksum is compared to the ordinary v4 DP run, so a
+fast loop cannot silently omit a source term or output calculation.
+
+The three-way steady-state table reports the same scalar physics in:
+
+| Label | Work compared |
+| --- | --- |
+| `fortran_cpu_steady` | v4 DP Fortran solve loop, one independent column/wavelength at a time |
+| `python_cpu_steady` | pydisort CPU `forward()` for the identical scalar fixture, plus its batched sweep |
+| `python_gpu_steady` | pydisort CUDA `forward()` for the identical scalar fixture and batches, with device-resident tensors |
+
+The table reports seconds per scalar solve and solved `(wavelength, column)`
+elements per second. Fortran is deliberately not charged Python process startup
+or file logging; pydisort is likewise timed after construction and warm-up.
+Pydisort's batch rows additionally show speed-up over the Fortran scalar
+per-solve baseline, labelled as a throughput comparison rather than a claim
+that Fortran supports the same batch interface.
 
 The large `(nwave, ncol)` timing sweep repeats or combines independent copies
 of that validated scalar fixture. Legacy Fortran is scalar, so it is run on the
@@ -263,7 +289,8 @@ A performance change is ready for review only when its commit includes:
 - profiler evidence that supports the claimed bottleneck; and
 - the full relevant pytest and CTest results.
 
-The report describes absolute latency, throughput in solved
-`(wavelength,column)` elements per second, and end-to-end time. Relative
-speed-ups are secondary and always name the baseline. No benchmark result is
-published from a `SKIP` or `FAIL` case.
+The report describes Fortran CPU, pydisort CPU, and pydisort GPU absolute
+latency; throughput in solved `(wavelength,column)` elements per second; and
+pydisort end-to-end time. Relative speed-ups are secondary and always name the
+baseline and whether it is scalar or batched. No benchmark result is published
+from a `SKIP` or `FAIL` case.
