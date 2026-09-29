@@ -263,6 +263,23 @@ threads. Keep the general solver as the reference route for near-conservative
 scattering. The acceptance chart is throughput versus `nwave*ncol`, with the
 same output and agreement values as the baseline.
 
+#### Phase 2 checkpoint — 2026-09-29
+
+Nsight Systems traces on the H100 isolate the device kernel as the bottleneck.
+For TP9 `(256,1)`, the sole DISORT kernel has an `8 x 1 x 1` grid of
+`32 x 1 x 1` blocks and runs for about 1.536 s; dispatch allocation and host
+copy APIs are negligible beside synchronization. For `(256,17)`, the traces
+show 32-thread, one-solve-per-thread blocks in grids of 46, 68, and 136 blocks,
+with DISORT kernels taking 1.97–3.07 s each.
+
+This establishes that more caching or transfer work cannot improve steady-state
+TP9. The current kernel gives each independent solve one lane and at most one
+warp per block; small batches leave most H100 SMs idle, while the 4,352-solve
+geometry batch still has only roughly one long-running warp per SM. The next
+experiment must change only the launch/workspace residency policy and retain the
+existing independent C-DISORT state contract. It needs CPU/CUDA agreement and
+the same TP9 event timing before and after the rebuild.
+
 ### Phase 3 — optimize transfer and application integration
 
 Act only if `transfer_boundary` shows transfers dominate end-to-end time.
