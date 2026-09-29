@@ -122,6 +122,8 @@ struct DisortOptionsImpl {
   //! Enable pseudo-spherical direct-beam geometry in C-DISORT units.
   DisortOptionsImpl& pseudo_spherical(
       double radius, std::vector<double> level_altitudes);
+  DisortOptionsImpl& general_source(torch::Tensor computational,
+                                    torch::Tensor user);
 
   bool pseudo_spherical_enabled() const noexcept {
     return pseudo_spherical_enabled_;
@@ -132,11 +134,23 @@ struct DisortOptionsImpl {
   const std::vector<double>& pseudo_spherical_altitudes() const noexcept {
     return pseudo_spherical_altitudes_;
   }
+  bool general_source_enabled() const noexcept {
+    return general_source_enabled_;
+  }
+  const torch::Tensor& general_source_computational() const noexcept {
+    return general_source_computational_;
+  }
+  const torch::Tensor& general_source_user() const noexcept {
+    return general_source_user_;
+  }
 
  private:
   bool pseudo_spherical_enabled_ = false;
   double pseudo_spherical_radius_ = 0.;
   std::vector<double> pseudo_spherical_altitudes_;
+  bool general_source_enabled_ = false;
+  torch::Tensor general_source_computational_;
+  torch::Tensor general_source_user_;
 };
 
 //! Shared pointer to DisortOptionsImpl

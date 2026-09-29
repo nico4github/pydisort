@@ -22,9 +22,11 @@ The C-DISORT source has implementations for pseudo-spherical direct-beam
 geometry, general-source arrays, several BRDFs, and special-boundary
 albedo/transmissivity. These are not complete Python capabilities yet:
 
-* ``ibcnd``, ``general_source``, and ``output_uum`` have no typed Python
-  inputs or result accessors yet. Raw configuration raises
-  ``NotImplementedError``.
+* ``ibcnd`` and ``output_uum`` have no typed Python inputs or result
+  accessors yet. Raw configuration raises ``NotImplementedError``.
+* ``general_source`` has a typed CPU-only input. CUDA requests raise
+  ``NotImplementedError`` until source arrays are implemented and validated
+  in the CUDA dispatch path.
 * Pseudo-spherical direct-beam geometry is supported through the typed
   ``pseudo_spherical`` option. Raw ``spher`` configuration raises
   ``NotImplementedError`` so it cannot appear to work without its required
@@ -50,7 +52,7 @@ unported solver-core changes from other DISORT versions.
      - Why it comes next and required evidence
    * - 1
      - General source arrays
-     - Unsupported
+     - CPU-only
      - This is the smallest missing source-term input already implemented by
        C-DISORT. Add a typed input, shape validation, a zero-source reduction,
        a direct C-DISORT/Fortran nonzero reference, and CPU/H100 CUDA agreement.
@@ -146,8 +148,17 @@ added.
 Work item 2: phase-function and general-source inputs
 ------------------------------------------------------
 
-**Status:** tabulated Legendre moments are covered by Problem 9b; general
-source arrays are planned.
+**Status:** tabulated Legendre moments are covered by Problem 9b. General
+source arrays are CPU-only: ``DisortOptions.general_source(computational,
+user)`` accepts CPU ``float64`` tensors with shapes ``(nwave, ncol, nstr,
+nlyr, nstr)`` and ``(nwave, ncol, nstr, nlyr, numu)``. CUDA requests raise
+``NotImplementedError`` until the CUDA backend has equivalent source-term
+support. The CPU reference is the bundled C-DISORT general-source calculation
+with one layer, ``nstr=4``, ``dtauc=0.2``, ``ssalb=0.5``, and unit Fourier-zero
+source arrays: its flux output is ``[[[[1.0891838249147526, 0.0], [0.0,
+1.0891838249147526]]]]``. Zero arrays reduce to the existing no-source
+solution. A matching Fortran general-source case has not yet been added to the
+sibling reference driver.
 
 Preserve the existing moment input. Define a typed general-source input with
 unambiguous tensor shapes for computational and user angles, and validate it

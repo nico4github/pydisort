@@ -40,5 +40,8 @@ void bind_disort_options(py::module& m) {
       .def("pseudo_spherical", &disort::DisortOptionsImpl::pseudo_spherical,
            py::arg("radius"), py::arg("level_altitudes"),
            py::return_value_policy::reference)
+      .def("general_source", &disort::DisortOptionsImpl::general_source,
+           py::arg("computational"), py::arg("user"),
+           py::return_value_policy::reference)
       .ADD_OPTION(disort_state, disort::DisortOptionsImpl, ds);
 }

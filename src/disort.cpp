@@ -1,4 +1,5 @@
 // C/C++
+#include <algorithm>
 #include <map>
 #include <vector>
 
@@ -51,6 +52,20 @@ DisortOptionsImpl& DisortOptionsImpl::pseudo_spherical(
   pseudo_spherical_enabled_ = true;
   pseudo_spherical_radius_ = radius;
   pseudo_spherical_altitudes_ = std::move(level_altitudes);
+  return *this;
+}
+
+DisortOptionsImpl& DisortOptionsImpl::general_source(
+    torch::Tensor computational, torch::Tensor user) {
+  TORCH_CHECK(
+      computational.device().is_cpu() && user.device().is_cpu(),
+      "DisortOptions.general_source: source tensors must be CPU tensors");
+  TORCH_CHECK(computational.scalar_type() == torch::kFloat64 &&
+                  user.scalar_type() == torch::kFloat64,
+              "DisortOptions.general_source: source tensors must use float64");
+  general_source_enabled_ = true;
+  general_source_computational_ = computational.contiguous();
+  general_source_user_ = user.contiguous();
   return *this;
 }
 
@@ -165,6 +180,7 @@ void DisortImpl::reset() {
   options->set_flags(options->flags());
   options->ds().flag.spher = options->pseudo_spherical_enabled();
   options->ds().radius = options->pseudo_spherical_radius();
+  options->ds().flag.general_source = options->general_source_enabled();
 
   options->ds().accur = options->accur();
 
@@ -176,6 +192,22 @@ void DisortImpl::reset() {
   TORCH_CHECK(options->ds().nstr > 0, "DisortImpl: ds.nstr <= 0");
   TORCH_CHECK(options->ds().nmom >= options->ds().nstr,
               "DisortImpl: ds.nmom < ds.nstr");
+
+  if (options->general_source_enabled()) {
+    const auto expected_computational = std::vector<int64_t>{
+        options->nwave(), options->ncol(), options->ds().nstr,
+        options->ds().nlyr, options->ds().nstr};
+    const auto expected_user = std::vector<int64_t>{
+        options->nwave(), options->ncol(), options->ds().nstr,
+        options->ds().nlyr, options->ds().numu};
+    TORCH_CHECK(options->general_source_computational().sizes().vec() ==
+                    expected_computational,
+                "DisortOptions.general_source: computational source must have "
+                "shape (nwave, ncol, nstr, nlyr, nstr)");
+    TORCH_CHECK(options->general_source_user().sizes().vec() == expected_user,
+                "DisortOptions.general_source: user source must have shape "
+                "(nwave, ncol, nstr, nlyr, numu)");
+  }
 
   if (options->ds().flag.planck) {
     TORCH_CHECK(options->wave_lower().size() == options->nwave(),
@@ -215,6 +247,21 @@ void DisortImpl::reset() {
     if (ds_[i].flag.spher) {
       const auto& altitudes = options->pseudo_spherical_altitudes();
       for (int j = 0; j <= ds_[i].nlyr; ++j) ds_[i].zd[j] = altitudes[j];
+    }
+
+    if (ds_[i].flag.general_source) {
+      const int wave = i / options->ncol();
+      const int col = i % options->ncol();
+      const auto computational =
+          options->general_source_computational().select(0, wave).select(0,
+                                                                         col);
+      const auto user =
+          options->general_source_user().select(0, wave).select(0, col);
+      std::copy(computational.data_ptr<double>(),
+                computational.data_ptr<double>() + computational.numel(),
+                ds_[i].gensrc);
+      std::copy(user.data_ptr<double>(), user.data_ptr<double>() + user.numel(),
+                ds_[i].gensrcu);
     }
 
     if (ds_[i].flag.planck) {
@@ -314,6 +361,12 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
   TORCH_CHECK(
       backend == "auto" || backend == "cpu" || backend == "cuda",
       "DisortImpl::forward: backend must be one of 'auto', 'cpu', or 'cuda'");
+
+  if (options->general_source_enabled() &&
+      (backend == "cuda" || (backend == "auto" && prop.is_cuda()))) {
+    throw UnsupportedCapabilityError(
+        "pydisort general_source is currently CPU-only; use backend='cpu'");
+  }
 
   if (backend != "auto") {
     const auto target_device = backend == "cpu" ? torch::Device(torch::kCPU)

@@ -401,6 +401,17 @@ class DisortOptions:
           pydisort.DisortOptions: class object
         """
         ...
+    def general_source(
+        self, computational: torch.Tensor, user: torch.Tensor
+    ) -> DisortOptions:
+        """Configure CPU general-source arrays.
+
+        ``computational`` has shape ``(nwave, ncol, nstr, nlyr, nstr)``;
+        ``user`` has shape ``(nwave, ncol, nstr, nlyr, numu)``. Both tensors
+        must be contiguous CPU ``float64`` tensors. CUDA execution raises
+        ``NotImplementedError`` until the CUDA backend supports this source.
+        """
+        ...
     def pseudo_spherical(
         self, radius: float, level_altitudes: Union[List[float], ndarray]
     ) -> DisortOptions:
