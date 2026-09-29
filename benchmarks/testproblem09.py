@@ -73,7 +73,15 @@ def layer_ssalb(nlyr=NLYR, slope=SSALB_SLOPE):
 # ---------------------------------------------------------------------------
 # pydisort
 # ---------------------------------------------------------------------------
-def build_pydisort(nwave, radiance, nstr=NSTR, nlyr=NLYR, slope=SSALB_SLOPE):
+def build_pydisort(
+    nwave,
+    radiance,
+    nstr=NSTR,
+    nlyr=NLYR,
+    slope=SSALB_SLOPE,
+    ncol=1,
+    angle_step=5,
+):
     """Configure a solver and its inputs for `nwave` wavenumbers.
 
     Returns (solver, prop, bc). Construction is deliberately kept out of the
@@ -93,26 +101,38 @@ def build_pydisort(nwave, radiance, nstr=NSTR, nlyr=NLYR, slope=SSALB_SLOPE):
     op.ds().nphase = nstr
     op.user_tau(USER_TAU)
     if radiance:
-        op.user_mu(USER_MU)
+        if ncol == 1:
+            op.user_mu(USER_MU)
+        else:
+            angles = np.deg2rad(np.arange(1, ncol + 1) * angle_step)
+            op.user_mu(
+                np.sort(np.concatenate((-np.cos(angles), np.cos(angles))))
+            )
         op.user_phi(USER_PHI)
     op.accur(0.0)
-    op.ncol(1)
+    op.ncol(ncol)
     op.nwave(nwave)
 
     ds = Disort(op)
 
-    prop = torch.zeros((nwave, 1, nlyr, 2 + nstr), dtype=torch.float64)
+    prop = torch.zeros((nwave, ncol, nlyr, 2 + nstr), dtype=torch.float64)
     prop[:, :, :, 0] = torch.from_numpy(layer_optical_depth(nlyr))
     prop[:, :, :, 1] = torch.from_numpy(layer_ssalb(nlyr, slope))
     prop[:, :, :, 2:] = scattering_moments(nstr, "isotropic")
 
     bc = {
-        "umu0": torch.tensor([UMU0], dtype=torch.float64),
-        "phi0": torch.tensor([PHI0], dtype=torch.float64),
-        "fbeam": torch.full((nwave, 1), FBEAM, dtype=torch.float64),
-        "fisot": torch.full((nwave, 1), FISOT, dtype=torch.float64),
-        "fluor": torch.zeros((nwave, 1), dtype=torch.float64),
-        "albedo": torch.full((nwave, 1), ALBEDO, dtype=torch.float64),
+        "umu0": (
+            torch.tensor([UMU0], dtype=torch.float64)
+            if ncol == 1
+            else torch.from_numpy(
+                np.cos(np.deg2rad(np.arange(1, ncol + 1) * angle_step))
+            )
+        ),
+        "phi0": torch.full((ncol,), PHI0, dtype=torch.float64),
+        "fbeam": torch.full((nwave, ncol), FBEAM, dtype=torch.float64),
+        "fisot": torch.full((nwave, ncol), FISOT, dtype=torch.float64),
+        "fluor": torch.zeros((nwave, ncol), dtype=torch.float64),
+        "albedo": torch.full((nwave, ncol), ALBEDO, dtype=torch.float64),
     }
     return ds, prop, bc
 
@@ -145,7 +165,7 @@ def cpu_model():
             return subprocess.check_output(
                 ["sysctl", "-n", "machdep.cpu.brand_string"], text=True
             ).strip()
-    except Exception:
+    except (OSError, subprocess.CalledProcessError):
         pass
     return platform.processor() or "unknown"
 
@@ -170,6 +190,8 @@ def blas_info():
     except ImportError:
         pinned = os.environ.get("OPENBLAS_NUM_THREADS", "unset")
         return [
-            f"OPENBLAS_NUM_THREADS={pinned} "
-            "(pip install threadpoolctl to confirm the real count)"
+            (
+                f"OPENBLAS_NUM_THREADS={pinned} "
+                "(pip install threadpoolctl to confirm the real count)"
+            )
         ]
