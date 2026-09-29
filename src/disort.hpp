@@ -124,6 +124,7 @@ struct DisortOptionsImpl {
       double radius, std::vector<double> level_altitudes);
   DisortOptionsImpl& general_source(torch::Tensor computational,
                                     torch::Tensor user);
+  DisortOptionsImpl& fourier_components();
 
   bool pseudo_spherical_enabled() const noexcept {
     return pseudo_spherical_enabled_;
@@ -136,6 +137,9 @@ struct DisortOptionsImpl {
   }
   bool general_source_enabled() const noexcept {
     return general_source_enabled_;
+  }
+  bool fourier_components_enabled() const noexcept {
+    return fourier_components_enabled_;
   }
   const torch::Tensor& general_source_computational() const noexcept {
     return general_source_computational_;
@@ -151,6 +155,7 @@ struct DisortOptionsImpl {
   bool general_source_enabled_ = false;
   torch::Tensor general_source_computational_;
   torch::Tensor general_source_user_;
+  bool fourier_components_enabled_ = false;
 };
 
 //! Shared pointer to DisortOptionsImpl
@@ -263,6 +268,13 @@ class DisortImpl : public torch::nn::Cloneable<DisortImpl> {
    * \return disort radiance outputs (nwave, ncol, nphi, ntau, numu)
    */
   torch::Tensor gather_rad() const;
+
+  //! Gather C-DISORT azimuthal Fourier intensity components.
+  //!
+  //! Available only after DisortOptions.fourier_components() on CPU. The
+  //! dimensions are (nwave, ncol, nstr, ntau, numu), with the third axis
+  //! indexed by Fourier order beginning at zero.
+  torch::Tensor gather_fourier() const;
 
   //! Calculate radiative flux or intensity
   /*!

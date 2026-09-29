@@ -144,8 +144,8 @@ class DisortOptions:
           it raises ``NotImplementedError``.
         * 'general_source': user-source arrays are not exposed, so using it
           raises ``NotImplementedError``.
-        * 'output_uum': Fourier-component outputs have no public accessor, so
-          using it raises ``NotImplementedError``.
+        * 'output_uum': raw Fourier-output configuration raises
+          ``NotImplementedError``. Use :meth:`fourier_components` instead.
 
         Do not enable these flags in Python calculations. See
         :ref:`python-flag-support` for the distinction between backend
@@ -401,6 +401,15 @@ class DisortOptions:
           pydisort.DisortOptions: class object
         """
         ...
+    def fourier_components(self) -> DisortOptions:
+        """Enable CPU-only azimuthal Fourier-component output.
+
+        Use :meth:`Disort.gather_fourier` after :meth:`Disort.forward` to
+        obtain components ordered from Fourier order zero through ``nstr - 1``.
+        CUDA requests raise ``NotImplementedError`` until that result buffer is
+        transferred and validated.
+        """
+        ...
     def general_source(
         self, computational: torch.Tensor, user: torch.Tensor
     ) -> DisortOptions:
@@ -593,6 +602,14 @@ class Disort(nn.Module):
           >>> tau = torch.tensor([0.1, 0.2, 0.3, 0.4]).unsqueeze(-1)
           >>> flx = ds.forward(tau, fbeam=torch.tensor([3.14159]))
           >>> ds.gather_flx()
+        """
+        ...
+    def gather_fourier(self) -> torch.Tensor:
+        """Gather C-DISORT azimuthal Fourier components.
+
+        This CPU-only accessor requires :meth:`DisortOptions.fourier_components`.
+        Returns a tensor with shape ``(nwave, ncol, nstr, ntau, numu)``; the
+        third dimension is the Fourier order, beginning at zero.
         """
         ...
     def gather_rad(self) -> torch.Tensor:

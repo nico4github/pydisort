@@ -58,10 +58,11 @@ unported solver-core changes from other DISORT versions.
        a direct C-DISORT/Fortran nonzero reference, and CPU/H100 CUDA agreement.
    * - 2
      - Fourier-component output (``output_uum``)
-     - Unsupported
-     - The underlying solver already produces the data. Define a narrow,
-       separate result accessor and verify its indexing against C-DISORT before
-       combining it with more complex surface physics.
+     - CPU-only
+     - A typed ``fourier_components()`` option and ``gather_fourier()`` accessor
+       expose the C-DISORT buffer on CPU. CUDA requests explicitly raise
+       ``NotImplementedError`` until result transfer and CPU/H100 agreement are
+       implemented.
    * - 3
      - RPV BRDF
      - Unsupported
@@ -197,8 +198,8 @@ CUDA support.
 Deferred items
 --------------
 
-``output_uum`` needs a separate Fourier-component result design after its
-input and indexing contract are documented. ``DELTAMPLUS`` requires
+``output_uum`` is CPU-only pending CUDA result transfer and H100 agreement.
+``DELTAMPLUS`` requires
 solver-core work or a documented C-DISORT upgrade or patch; it is not a hidden
 binding to expose. Neither may be enabled through a silent fallback.
 

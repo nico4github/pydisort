@@ -55,6 +55,11 @@ DisortOptionsImpl& DisortOptionsImpl::pseudo_spherical(
   return *this;
 }
 
+DisortOptionsImpl& DisortOptionsImpl::fourier_components() {
+  fourier_components_enabled_ = true;
+  return *this;
+}
+
 DisortOptionsImpl& DisortOptionsImpl::general_source(
     torch::Tensor computational, torch::Tensor user) {
   TORCH_CHECK(
@@ -142,7 +147,8 @@ void validate_supported_configuration(const DisortOptions& options) {
                                    "beam, isotropic, or thermal inputs");
     }
     if (flag == "output_uum") {
-      raise_unsupported_capability("output_uum", "gather_flx or gather_rad");
+      raise_unsupported_capability("output_uum",
+                                   "DisortOptions.fourier_components()");
     }
   }
 
@@ -181,6 +187,7 @@ void DisortImpl::reset() {
   options->ds().flag.spher = options->pseudo_spherical_enabled();
   options->ds().radius = options->pseudo_spherical_radius();
   options->ds().flag.general_source = options->general_source_enabled();
+  options->ds().flag.output_uum = options->fourier_components_enabled();
 
   options->ds().accur = options->accur();
 
@@ -319,6 +326,32 @@ torch::Tensor DisortImpl::gather_flx() const {
   }
 }
 
+torch::Tensor DisortImpl::gather_fourier() const {
+  TORCH_CHECK(allocated_,
+              "DisortImpl::gather_fourier: DisortImpl not allocated");
+  TORCH_CHECK(options->fourier_components_enabled(),
+              "DisortImpl::gather_fourier: enable output with "
+              "DisortOptions.fourier_components()");
+  if (result_options_.device().is_cuda()) {
+    throw UnsupportedCapabilityError(
+        "pydisort gather_fourier is not implemented for CUDA; use "
+        "backend='cpu' for Fourier-component output");
+  }
+
+  const int nstr = ds().nstr;
+  const int ntau = ds().ntau;
+  const int numu = ds().numu;
+  auto result = torch::empty(
+      {options->nwave() * options->ncol(), nstr, ntau, numu}, result_options_);
+  for (int i = 0; i < options->nwave() * options->ncol(); ++i) {
+    auto components = torch::from_blob(
+        ds_out_[i].uum, {nstr, ntau, numu}, {ntau * numu, numu, 1},
+        torch::TensorOptions().dtype(torch::kFloat64));
+    result[i].copy_(components);
+  }
+  return result.view({options->nwave(), options->ncol(), nstr, ntau, numu});
+}
+
 torch::Tensor DisortImpl::gather_rad() const {
   TORCH_CHECK(allocated_, "DisortImpl::gather_rad: DisortImpl not allocated");
 
@@ -377,10 +410,16 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
       backend == "auto" || backend == "cpu" || backend == "cuda",
       "DisortImpl::forward: backend must be one of 'auto', 'cpu', or 'cuda'");
 
-  if (options->general_source_enabled() &&
-      (backend == "cuda" || (backend == "auto" && prop.is_cuda()))) {
+  const bool cuda_requested =
+      backend == "cuda" || (backend == "auto" && prop.is_cuda());
+  if (options->general_source_enabled() && cuda_requested) {
     throw UnsupportedCapabilityError(
         "pydisort general_source is currently CPU-only; use backend='cpu'");
+  }
+  if (options->fourier_components_enabled() && cuda_requested) {
+    throw UnsupportedCapabilityError(
+        "pydisort Fourier-component output is currently CPU-only; use "
+        "backend='cpu'");
   }
 
   if (backend != "auto") {

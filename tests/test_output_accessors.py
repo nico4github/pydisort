@@ -220,3 +220,63 @@ def test_quadrature_radiance_uses_allocated_angle_count():
     radiance = ds.gather_rad()
     assert_equal(radiance.shape, (1, 1, 2, 2, 4))
     assert torch.isfinite(radiance).all()
+
+
+def test_gather_fourier_returns_cdisort_azimuthal_components():
+    """A typed CPU option exposes C-DISORT's Fourier-order buffer.
+
+    Isotropic top illumination has no azimuthal variation: Fourier order zero
+    therefore equals the ordinary radiance, while every higher order is zero.
+    This checks the C-DISORT buffer order without reconstructing it from the
+    final cosine series.
+    """
+    op = (
+        DisortOptions()
+        .header("fourier output")
+        .flags("usrtau,usrang,lamber,quiet")
+    )
+    op.ds().nlyr = 1
+    op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
+    op.user_tau(np.array([0.0, 1.0]))
+    op.user_mu(np.array([-0.5, 0.5]))
+    op.user_phi(np.array([0.0]))
+    op.fourier_components()
+    solver = Disort(op)
+
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    solver.forward(
+        prop,
+        fisot=torch.ones((1, 1), dtype=torch.float64),
+        fbeam=torch.zeros((1, 1), dtype=torch.float64),
+    )
+
+    components = solver.gather_fourier()
+    assert_equal(components.shape, (1, 1, 4, 2, 2))
+    assert_allclose(
+        components[:, :, 0], solver.gather_rad()[:, :, 0], atol=0, rtol=0
+    )
+    assert_allclose(components[:, :, 1:], 0.0, atol=1e-14, rtol=0)
+
+
+def test_gather_fourier_requires_typed_option():
+    solver, _ = build([0.0, 1.0])
+
+    with pytest.raises(RuntimeError, match="fourier_components"):
+        solver.gather_fourier()
+
+
+def test_fourier_components_reject_cuda_dispatch():
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA is unavailable")
+
+    op = DisortOptions().flags("onlyfl,lamber,quiet").backend("cuda")
+    op.ds().nlyr = 1
+    op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
+    op.fourier_components()
+    solver = Disort(op)
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 0.1
+
+    with pytest.raises(NotImplementedError, match="Fourier-component output"):
+        solver.forward(prop, fbeam=torch.ones((1, 1), dtype=torch.float64))
