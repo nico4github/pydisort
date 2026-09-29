@@ -298,9 +298,10 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-For the H100 development checkout, `./run_pytest.sh` runs the focused CUDA
-backend-selection check, the full Python suite, and CTest with the local
-`.venv` interpreter. Use `./run_pytest.sh --list` to print each command and
+For the H100 development checkout, `.python-version` pins the contributor
+interpreter to CPython 3.12.14; it does not change the package's supported
+CPython range. `./run_pytest.sh` runs the focused CUDA backend-selection
+check, the full Python suite, and CTest with the local `.venv` interpreter. Use `./run_pytest.sh --list` to print each command and
 collect the pytest and CTest cases without executing them.
 
 Use `./rebuild_and_test.sh` after native source changes. It prints the start
