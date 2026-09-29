@@ -289,6 +289,12 @@ DisortImpl::~DisortImpl() {
 torch::Tensor DisortImpl::gather_flx() const {
   TORCH_CHECK(allocated_, "DisortImpl::gather_flx: DisortImpl not allocated");
 
+  if (result_options_.device().is_cuda()) {
+    throw UnsupportedCapabilityError(
+        "pydisort gather_flx is not implemented for CUDA; use forward() "
+        "for CUDA flux output");
+  }
+
   // `out->rad` holds exactly ds.ntau entries (cdisort213/alloc.h), where ntau
   // is the value *after* c_disort_state_alloc, not the one set in reset():
   // alloc overwrites it with nlyr + 1 when usrtau is off and leaves the user's
@@ -302,7 +308,7 @@ torch::Tensor DisortImpl::gather_flx() const {
 
   for (int i = 0; i < options->nwave() * options->ncol(); ++i) {
     auto var = torch::from_blob(&ds_out_[i].rad[0].rfldir, {ntau, 8}, {8, 1},
-                                result_options_.dtype(torch::kFloat64));
+                                torch::TensorOptions().dtype(torch::kFloat64));
     result[i].copy_(var);
   }
 
@@ -316,12 +322,21 @@ torch::Tensor DisortImpl::gather_flx() const {
 torch::Tensor DisortImpl::gather_rad() const {
   TORCH_CHECK(allocated_, "DisortImpl::gather_rad: DisortImpl not allocated");
 
+  if (result_options_.device().is_cuda()) {
+    throw UnsupportedCapabilityError(
+        "pydisort gather_rad is not implemented for CUDA; use backend=\'cpu\' "
+        "for radiance output");
+  }
+
   TORCH_CHECK(options->ds().flag.onlyfl == false,
               "DisortImpl::gather_rad: ds.onlyfl == true");
 
-  int nphi = options->ds().nphi;
-  int ntau = options->ds().ntau;
-  int numu = options->ds().numu;
+  // C-DISORT may replace the requested angular count with nstr when usrang
+  // is false.  Read the allocated solve dimensions, rather than the caller's
+  // pre-allocation options, so that the tensor covers the whole radiance grid.
+  int nphi = ds().nphi;
+  int ntau = ds().ntau;
+  int numu = ds().numu;
 
   auto result = torch::empty(
       {options->nwave() * options->ncol(), nphi, ntau, numu}, result_options_);
@@ -329,7 +344,7 @@ torch::Tensor DisortImpl::gather_rad() const {
   for (int i = 0; i < options->nwave() * options->ncol(); ++i) {
     auto var = torch::from_blob(ds_out_[i].uu, {nphi, ntau, numu},
                                 {ntau * numu, numu, 1},
-                                result_options_.dtype(torch::kFloat64));
+                                torch::TensorOptions().dtype(torch::kFloat64));
     result[i].copy_(var);
   }
 

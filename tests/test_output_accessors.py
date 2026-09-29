@@ -184,3 +184,39 @@ def test_gather_rad_is_rejected_in_flux_only_mode():
 
     with pytest.raises(RuntimeError, match="onlyfl"):
         ds.gather_rad()
+
+
+def test_quadrature_radiance_uses_allocated_angle_count():
+    """Clearing usrang exposes all native quadrature radiances.
+
+    C-DISORT replaces the caller's requested angle count with ``nstr`` in
+    this mode.  A one-element ``user_mu`` request makes the distinction
+    observable and protects ``gather_rad`` from returning a truncated view.
+    """
+    flags = "usrtau,lamber,quiet"
+    op = DisortOptions().header("quadrature radiance").flags(flags)
+    op.ds().nlyr = 1
+    op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
+    op.user_tau(np.array([0.0, 1.0]))
+    op.user_mu(np.array([0.0]))
+    op.user_phi(np.array([0.0, 90.0]))
+    op.ncol(1)
+    op.nwave(1)
+
+    ds = Disort(op)
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    prop[..., 1] = 0.5
+    prop[..., 2:] = scattering_moments(4, "isotropic")
+    ds.forward(
+        prop,
+        umu0=torch.tensor([0.5], dtype=torch.float64),
+        phi0=torch.tensor([0.0], dtype=torch.float64),
+        fbeam=torch.tensor([[np.pi]], dtype=torch.float64),
+        fisot=torch.tensor([[1.0]], dtype=torch.float64),
+        albedo=torch.tensor([[0.3]], dtype=torch.float64),
+    )
+
+    radiance = ds.gather_rad()
+    assert_equal(radiance.shape, (1, 1, 2, 2, 4))
+    assert torch.isfinite(radiance).all()

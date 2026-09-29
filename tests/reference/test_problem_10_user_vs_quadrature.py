@@ -11,9 +11,9 @@ agree. That is the check here as well, on fluxes: the angular grid used for
 reporting intensities must not disturb the flux integration, which is
 performed over the quadrature angles either way.
 
-This port checks fluxes rather than intensities. ``gather_rad`` reads dimensions
-from the pre-allocation state, so it under-reports when ``usrang`` is clear;
-that accessor limitation needs separate code coverage and is not tested here.
+This port checks both fluxes and intensities.  In particular, ``gather_rad``
+must expose all ``nstr`` quadrature angles when ``usrang`` is clear, even if
+the caller supplied a shorter ``user_mu`` array before allocation.
 
 Reference:
     Consistency-check configuration adapted from disort_test10() in
