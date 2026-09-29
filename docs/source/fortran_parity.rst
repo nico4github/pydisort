@@ -195,22 +195,22 @@ Unsupported model names and parameter combinations must raise
 Work item 4: special-boundary calculations
 -------------------------------------------
 
-**Status:** CPU-only typed result. The inventory remains five families / eight
-targets, with direct Fortran v4 bridge coverage complete and H100 CUDA
-agreement pending.
+**Status:** typed CPU/CUDA result. The inventory remains five families / eight
+targets, with direct Fortran v4 bridge coverage and H100 CUDA agreement complete.
 
 ``Disort.medium_albedo_transmissivity(prop, albedo=None)`` returns a
 ``SpecialBoundaryResult`` with named ``albedo`` and ``transmissivity`` tensors,
 each shaped ``(nwave, ncol, numu)``. It accepts only positive user cosines and
 uses a separate ``SPECIAL_BC`` state, so ordinary ``forward()`` flux/radiance
 allocations cannot be reused. Unsupported thermal, general-source,
-pseudo-spherical, and BRDF combinations raise an error; CUDA requests raise
-``NotImplementedError``.
+pseudo-spherical, and BRDF combinations raise an error. CUDA requests run the
+isolated ``SPECIAL_BC`` device path and return CUDA tensors.
 
 The dedicated pytest compares Problem 13a/13c atmospheres with ordinary
 unit-flux beam solutions (13b/13d) at ``1e-6`` relative plus ``1e-8`` absolute
 tolerance. It also covers batched wave/column inputs, black-to-reflecting
-surfaces, invalid cosines, and CUDA rejection. The sibling bridge test records
+surfaces, invalid cosines, and H100 CUDA agreement for two user cosines and
+four surface albedos. The sibling bridge test records
 the Fortran v4 13b/13d values: albedo/transmissivity are
 ``0.5452584/0.8449987`` for 13a and ``0.2762007/0.5033189`` for 13c. The v4
 driver accepts the special cases but does not print its ALBMED/TRNMED arrays;
@@ -220,8 +220,8 @@ under AddressSanitizer and UndefinedBehaviorSanitizer.
 
 The C-DISORT patch in ``cdisort_patches/0001-special-boundary.patch`` fixes the
 internally doubled angle buffers, in-place reversal, and legacy overwrite that
-previously prevented a safe API. CPU/H100 agreement is still required before
-CUDA support can be declared.
+previously prevented a safe API. The H100 result uses one independent
+``SPECIAL_BC`` state per wave/column and the existing per-thread CUDA workspace.
 
 Deferred items
 --------------

@@ -284,7 +284,7 @@ class DisortImpl : public torch::nn::Cloneable<DisortImpl> {
   //! indexed by Fourier order beginning at zero.
   torch::Tensor gather_fourier() const;
 
-  //! Calculate special-boundary medium albedo and transmissivity on CPU.
+  //! Calculate special-boundary medium albedo and transmissivity on CPU or CUDA.
   //!
   //! Uses the positive incidence-angle cosines configured through user_mu().
   //! The named tensors have shape (nwave, ncol, numu). This has a separate

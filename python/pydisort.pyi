@@ -593,15 +593,16 @@ class Disort(nn.Module):
     ) -> SpecialBoundaryResult:
         """Calculate special-boundary medium albedo and transmissivity.
 
-        This CPU-only method uses the positive incidence-angle cosines in
+        This method uses the positive incidence-angle cosines in
         DisortOptions.user_mu. The prop argument follows forward's optical
         property layout and singleton insertion rules. Albedo, if provided,
-        is a CPU float64 tensor with shape (nwave, ncol).
+        is a float64 tensor with shape (nwave, ncol) on prop's device.
 
         It returns named albedo and transmissivity tensors, each with shape
         (nwave, ncol, numu). It does not share forward's flux/radiance contract.
         Thermal, general source, pseudo-spherical, and BRDF options are
-        unsupported. CUDA requests raise NotImplementedError.
+        unsupported. CUDA requests return CUDA tensors and agree with CPU on validated
+        Problem 13 cases.
         """
         ...
     def release_cuda_workspace(self) -> None:

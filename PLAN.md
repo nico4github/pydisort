@@ -23,7 +23,7 @@ Fourier-component output, four BRDF models, special-boundary output, and
 
 ## Special-boundary (`ibcnd`) status — 2026-09-29
 
-`Disort.medium_albedo_transmissivity(prop, albedo=None)` is a CPU-only typed
+`Disort.medium_albedo_transmissivity(prop, albedo=None)` is a typed CPU/CUDA
 special-boundary calculation. It returns a `SpecialBoundaryResult` whose
 `albedo` and `transmissivity` tensors have shape `(nwave, ncol, numu)`, with
 positive incidence-angle cosines from `DisortOptions.user_mu()`. The ordinary
@@ -35,7 +35,7 @@ not reuse ordinary flux/radiance buffers. Its dedicated pytest compares
 Problem 13a/13c atmospheres against ordinary unit-flux beam solutions
 (13b/13d), including batched wave/column inputs, several albedos, and two
 incidence cosines at `1e-6` relative plus `1e-8` absolute tolerance. Invalid
-cosines are rejected and CUDA requests raise `NotImplementedError`.
+cosines are rejected. CUDA results remain on CUDA and agree with CPU at the same tolerance.
 
 The standalone regression in `tests/cdisort213/test_cdisort_special_boundary.c`
 passes 16 cases under AddressSanitizer/UndefinedBehaviorSanitizer. The
@@ -47,6 +47,7 @@ The sibling bridge validates the Fortran v4 Problem 13 pairs: 13a/13b gives
 `0.5452584/0.8449987` and 13c/13d gives `0.2762007/0.5033189` for
 albedo/transmissivity at `1e-6` relative plus `1e-8` absolute tolerance.
 The v4 driver does not print ALBMED/TRNMED for 13a/13c, so the paired unit-flux
-beam cases provide their direct reference values. Remaining work is CPU/H100
-CUDA agreement before special-boundary CUDA support can be declared. The
-five-family, eight-target inventory is unchanged while the target is CPU-only.
+beam cases provide their direct reference values. H100 CUDA agreement passes
+for batched Problem 13 properties, two user cosines, and surface albedos
+`0`, `0.25`, `0.5`, and `0.75` at the same tolerance. The five-family,
+eight-target inventory is unchanged.

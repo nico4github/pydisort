@@ -437,9 +437,8 @@ The standalone C-DISORT Problem 13 regression passes **16 cases, 0 skips,
 shortcut agrees with ordinary beam solutions at `1e-6` relative plus `1e-8`
 absolute tolerance. See [the documented core patch](cdisort_patches/README.md)
 for reproduction and scope. Python
-`medium_albedo_transmissivity(prop, albedo=None)` now returns named CPU
-`albedo` and `transmissivity` tensors. Raw `ibcnd` configuration and CUDA
-special-boundary requests remain unsupported.
+`medium_albedo_transmissivity(prop, albedo=None)` returns named CPU or CUDA
+`albedo` and `transmissivity` tensors. Raw `ibcnd` configuration remains unsupported.
 
 The CUDA build (`CUDA=ON`, architecture `90`) and
 `python -m pip install --no-build-isolation .` passed using the development
@@ -451,5 +450,6 @@ extension unit tests, and Sphinx HTML/doctest builds with `-W` passed. The
 sibling bridge test also passes the Fortran v4 Problem 13 references: 13a
 albedo/transmissivity `0.5452584/0.8449987` and 13c
 `0.2762007/0.5033189`, each at `1e-6` relative plus `1e-8` absolute tolerance.
-Benchmark checks were not run because benchmark tooling was unchanged;
-special-boundary H100 agreement remains pending.
+The focused H100 agreement suite passes all seven special-boundary tests,
+including batched CUDA results at `1e-6` relative plus `1e-8` absolute tolerance.
+Benchmark checks were not run because benchmark tooling was unchanged.
