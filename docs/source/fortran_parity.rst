@@ -196,7 +196,8 @@ Work item 4: special-boundary calculations
 -------------------------------------------
 
 **Status:** CPU-only typed result. The inventory remains five families / eight
-targets, with direct Fortran bridge coverage and H100 CUDA agreement pending.
+targets, with direct Fortran v4 bridge coverage complete and H100 CUDA
+agreement pending.
 
 ``Disort.medium_albedo_transmissivity(prop, albedo=None)`` returns a
 ``SpecialBoundaryResult`` with named ``albedo`` and ``transmissivity`` tensors,
@@ -209,15 +210,18 @@ pseudo-spherical, and BRDF combinations raise an error; CUDA requests raise
 The dedicated pytest compares Problem 13a/13c atmospheres with ordinary
 unit-flux beam solutions (13b/13d) at ``1e-6`` relative plus ``1e-8`` absolute
 tolerance. It also covers batched wave/column inputs, black-to-reflecting
-surfaces, invalid cosines, and CUDA rejection. The standalone lifecycle
-regression remains 16 passes, 0 skips, and 0 failures under AddressSanitizer
-and UndefinedBehaviorSanitizer. This is C-DISORT reference coverage, not a
-direct Fortran comparison.
+surfaces, invalid cosines, and CUDA rejection. The sibling bridge test records
+the Fortran v4 13b/13d values: albedo/transmissivity are
+``0.5452584/0.8449987`` for 13a and ``0.2762007/0.5033189`` for 13c. The v4
+driver accepts the special cases but does not print its ALBMED/TRNMED arrays;
+the paired unit-flux cases are their documented reference definition. The
+standalone lifecycle regression remains 16 passes, 0 skips, and 0 failures
+under AddressSanitizer and UndefinedBehaviorSanitizer.
 
 The C-DISORT patch in ``cdisort_patches/0001-special-boundary.patch`` fixes the
 internally doubled angle buffers, in-place reversal, and legacy overwrite that
-previously prevented a safe API. Direct Fortran bridge validation and CPU/H100
-agreement are still required before CUDA support can be declared.
+previously prevented a safe API. CPU/H100 agreement is still required before
+CUDA support can be declared.
 
 Deferred items
 --------------

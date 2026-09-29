@@ -446,6 +446,9 @@ The CUDA build (`CUDA=ON`, architecture `90`) and
 `python -m pytest tests/ -v -rs`: **235 passed, 0 skipped, 0 failed**.
 `ctest --test-dir build --output-on-failure`: **27 passed, 0 skipped, 0 failed**.
 `pre-commit run --all-files`, `git diff --check`, Ruff, mypy, three documentation
-extension unit tests, and Sphinx HTML/doctest builds with `-W` passed. Benchmark
-checks were not run because benchmark tooling was unchanged; direct Fortran and
-special-boundary H100 agreement remain pending.
+extension unit tests, and Sphinx HTML/doctest builds with `-W` passed. The
+sibling bridge test also passes the Fortran v4 Problem 13 references: 13a
+albedo/transmissivity `0.5452584/0.8449987` and 13c
+`0.2762007/0.5033189`, each at `1e-6` relative plus `1e-8` absolute tolerance.
+Benchmark checks were not run because benchmark tooling was unchanged;
+special-boundary H100 agreement remains pending.

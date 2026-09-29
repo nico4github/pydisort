@@ -43,6 +43,10 @@ documented patch fixes undersized internally doubled angle buffers, an
 overlapping angle reversal, and a legacy uvspec overwrite of the first beam
 result. See `cdisort_patches/README.md` for provenance and reproduction.
 
-Remaining work: direct Fortran bridge coverage and CPU/H100 CUDA agreement
-before special-boundary CUDA support can be declared. The five-family,
-eight-target inventory is unchanged while the target is CPU-only.
+The sibling bridge validates the Fortran v4 Problem 13 pairs: 13a/13b gives
+`0.5452584/0.8449987` and 13c/13d gives `0.2762007/0.5033189` for
+albedo/transmissivity at `1e-6` relative plus `1e-8` absolute tolerance.
+The v4 driver does not print ALBMED/TRNMED for 13a/13c, so the paired unit-flux
+beam cases provide their direct reference values. Remaining work is CPU/H100
+CUDA agreement before special-boundary CUDA support can be declared. The
+five-family, eight-target inventory is unchanged while the target is CPU-only.
