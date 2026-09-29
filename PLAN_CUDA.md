@@ -17,7 +17,8 @@ input transfer, and output transfer.
 ## Rules and definition of a valid result
 
 1. Every benchmark case is defined once in code and has a stable identifier,
-   physical inputs, requested outputs, dtype, and reference source.
+   physical inputs, requested outputs, dtype, and a Fortran v4 DP reference
+   fixture. The legacy Fortran result is the physical source of truth.
 2. A result has three independent checks: correctness, steady-state device
    throughput, and end-to-end application time. Do not quote one as another.
 3. Timed CUDA regions use CUDA events on the active stream and synchronize
@@ -31,11 +32,12 @@ input transfer, and output transfer.
 5. CPU and CUDA use `float64` until a separately designed precision mode has a
    documented physical error budget. There is no implicit lower-precision
    speed path.
-6. A supported CUDA case must agree with its CPU reference before its timing
-   is retained. Existing fast 4/8-stream cases use their dedicated tolerance;
+6. A supported case must first agree with its Fortran v4 DP reference. CUDA
+   must then agree with the corresponding CPU result before its timing is
+   retained. Existing fast 4/8-stream cases use their dedicated tolerance;
    ordinary shared-algorithm cases use the tighter CPU/CUDA tolerance. Each
    new case records maximum absolute error, relative RMS error for upward,
-   downward, and net flux, and the agreed threshold.
+   downward, and net flux, and the agreed thresholds.
 7. A failure, non-finite value, or unsupported configuration is never a speed
    result. Report it respectively as `FAIL` or `SKIP` with the exact reason.
    Unsupported CPU-only features must continue to raise `NotImplementedError`
@@ -43,10 +45,11 @@ input transfer, and output transfer.
 
 ## Reproducible harness and stored evidence
 
-Add a single `benchmarks/compare_backends.py` harness and small test module.
-It will construct all workloads from named factories, perform the agreement
-check before timing, emit JSON Lines, and optionally write one human-readable
-summary. It must provide these timing modes:
+Add a single `benchmarks/compare_backends.py` harness, a Fortran-reference
+adapter, and a small test module. The harness will construct all workloads
+from named factories, obtain the Fortran v4 DP reference before timing, then
+perform CPU/CUDA agreement checks, emit JSON Lines, and optionally write one
+human-readable summary. It must provide these timing modes:
 
 | Mode | Included work | Purpose |
 | --- | --- | --- |
@@ -58,11 +61,13 @@ summary. It must provide these timing modes:
 | `gpu_end_to_end` | host inputs through host result | application-visible latency |
 
 The harness must expose `--case`, `--nwave`, `--ncol`, `--nlyr`, `--nstr`,
-`--repeat`, `--warmup`, `--threads`, `--timing-mode`, and `--output`. It must
-record the git revision and dirty state; host name; CPU model and thread count;
-GPU model, memory, driver, and compute capability; PyTorch version and CUDA
-runtime; CMake CUDA compiler and architecture; dtype; stream count; all shape
-parameters; timing samples; and accuracy metrics.
+`--repeat`, `--warmup`, `--threads`, `--timing-mode`, `--fortran-root`, and
+`--output`. `--fortran-root` defaults to the sibling
+`$HOME/disort-pyf` checkout. It must record the git revision and dirty state
+of both repositories; Fortran executable and output-log hash; host name; CPU
+model and thread count; GPU model, memory, driver, and compute capability;
+PyTorch version and CUDA runtime; CMake CUDA compiler and architecture; dtype;
+stream count; all shape parameters; timing samples; and accuracy metrics.
 
 Store reviewed H100 records in
 `benchmarks/results/<hostname>/`, one JSONL file per run plus a concise
@@ -83,6 +88,40 @@ The harness test suite uses small shapes and CPU-only structural checks. The
 H100 benchmark matrix remains a manual, recorded gate; it does not become a
 slow CI job.
 
+### Fortran-reference adapter
+
+The adapter must run the sibling bridge's double-precision legacy reference,
+not a pydisort result and not a hand-copied table. It first ensures the bridge
+has generated `reports/si/disotest/disotest_v4_dp.out.txt` and its per-case
+`*_v4_dp.log` records using:
+
+```bash
+cd /home/ngorius/disort-pyf
+DISORT_REPORT_DIR=reports ./make_run_all_fortran.sh
+```
+
+Each benchmark factory declares a canonical Fortran fixture: its DISOTEST case
+identifier, required input fields, output fields, and tolerance. The adapter
+extracts the v4 DP input dump and output metrics, verifies that the benchmark's
+base CPU inputs match that dump, and compares the base CPU result to those
+Fortran outputs. It writes the selected case name and hashes to the benchmark
+record. A missing, incomplete, or nonzero Fortran run is `FAIL`, never an
+assumed reference.
+
+The large `(nwave, ncol)` timing sweep repeats or combines independent copies
+of that validated scalar fixture. Legacy Fortran is scalar, so it is run on the
+base fixture rather than included in the throughput timing loop. Before timing
+a batch, the harness verifies pydisort CPU batch output against independent
+CPU scalar solves; CUDA then compares to that already Fortran-validated CPU
+batch. This preserves the Fortran source of truth while measuring the batching
+that pydisort adds.
+
+If a challenging configuration has no existing v4 DP DISOTEST fixture, add a
+separate non-legacy reference driver in `disort-pyf` that calls the unmodified
+v4 DP solver and emits the same parseable dump/metrics. Add its Fortran run and
+Python comparison test before adding the configuration to a performance chart.
+Do not edit legacy Fortran sources merely to create a benchmark.
+
 ## Benchmark cases
 
 The set deliberately spans cheap latency-sensitive calls, throughput-sized
@@ -93,8 +132,8 @@ case is not added merely to create a favorable speed-up.
 | --- | --- | --- | --- |
 | `latency_flux_4` | Plane-parallel shortwave, Lambertian, `onlyfl`, 4 streams, ordinary scattering | `(nwave, ncol)=(1,1),(8,1),(32,4)`; 20 and 100 layers | CPU/CUDA flux agreement; exposes launch, state-copy, and allocation costs. |
 | `latency_flux_8` | Same, 8 streams | Same | Exercises the other specialized CUDA kernel. |
-| `tp9_flux` | Existing Test Problem 9-derived inhomogeneous scattering, flux only | `nwave=1,8,64,256,1024`; `ncol=1,4,16`; 32/100 layers; 8/16/32 streams | C-DISORT verification on the base shape, then CPU/CUDA agreement; primary realistic throughput curve. |
-| `tp9_radiance_cpu` | Test Problem 9 with user tau, mu, and phi | Same spectral/column sweep, 8/16/32 streams | CPU and C-DISORT only. CUDA currently returns flux but not radiance access, so record a documented `SKIP` for CUDA result retrieval rather than inventing a proxy. |
+| `tp9_flux` | Existing Test Problem 9-derived inhomogeneous scattering, flux only | `nwave=1,8,64,256,1024`; `ncol=1,4,16`; 32/100 layers; 8/16/32 streams | Fortran v4 DP base fixture first, C-DISORT as wrapper-overhead diagnostic, then CPU/CUDA agreement; primary realistic throughput curve. |
+| `tp9_radiance_cpu` | Test Problem 9 with user tau, mu, and phi | Same spectral/column sweep, 8/16/32 streams | Fortran v4 DP base fixture first, then CPU/C-DISORT. CUDA currently returns flux but not radiance access, so record a documented `SKIP` for CUDA result retrieval rather than inventing a proxy. |
 | `shortwave_beam` | Direct beam, oblique solar angles `umu0=0.1,0.5,0.9`, dark and bright Lambertian lower boundaries | 40/100/300 layers; 4/8/16 streams | CPU/CUDA flux agreement; catches beam and surface costs. |
 | `longwave_thermal` | Planck emission, non-isothermal temperature profile, absorptive and scattering media | 40/100/300 layers; 4/8/16 streams; spectral batches 1–1024 | CPU/CUDA agreement and nonzero-emission physical check; measures the thermal path separately. |
 | `anisotropic_high_order` | Strong forward scattering with Henyey–Greenstein-like moments and optical depth 0.1, 1, 20 | 16/32/64 streams; 100/300 layers | CPU/CUDA agreement; measures stream-order growth and conditioning. |
@@ -112,8 +151,9 @@ capability, rather than silently executing a CPU fallback.
 
 For each benchmark factory, add a dedicated pytest before measuring it:
 
-1. Check a published DISORT reference or C-DISORT result at a small base shape
-   when one exists. Test Problem 9 uses the existing C baseline verification.
+1. Run the declared Fortran v4 DP fixture and compare the base CPU benchmark
+   output against its logged output metrics and inputs. Test Problem 9 also
+   uses the existing C-DISORT baseline verification as a secondary diagnostic.
 2. Compare every supported CUDA result to CPU for the exact benchmark inputs.
    Preserve the existing `1e-6` relative-RMSE envelope for fast 4/8-stream
    flux paths and `1e-8` for general-path conservative routing unless a new,
@@ -131,10 +171,12 @@ For each benchmark factory, add a dedicated pytest before measuring it:
 
 ### Phase 0 — establish the H100 baseline
 
-Implement the harness and the small benchmark factories first. Run the full
-matrix with the Release `sm_90` build and record CPU thread sweeps (1, physical
-core count, and the chosen production count), CUDA steady-state, and
-end-to-end results. Capture a Nsight Systems timeline for `latency_flux_4`,
+Implement the Fortran-reference adapter, then the harness and small benchmark
+factories. Run each declared v4 DP fixture first and retain its input/output
+hashes alongside the resulting benchmark record. Run the full matrix with the
+Release `sm_90` build and record CPU thread sweeps (1, physical core count,
+and the chosen production count), CUDA steady-state, and end-to-end results.
+Capture a Nsight Systems timeline for `latency_flux_4`,
 `tp9_flux`, and `transfer_boundary`; use Nsight Compute only on a representative
 small and throughput-sized kernel. This phase establishes a numerical and
 performance baseline; it changes no solver code.
@@ -216,7 +258,8 @@ A performance change is ready for review only when its commit includes:
   `benchmarks/results/<hostname>/`;
 - CPU and GPU timing modes, batch shape, dtype, thread/stream settings, and
   full toolchain provenance;
-- CPU/CUDA accuracy metrics and the reference basis;
+- Fortran v4 DP fixture identifier, log hashes, CPU/Fortran and CPU/CUDA
+  accuracy metrics, and the reference basis;
 - profiler evidence that supports the claimed bottleneck; and
 - the full relevant pytest and CTest results.
 
