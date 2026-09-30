@@ -1561,6 +1561,10 @@ DISPATCH_MACRO inline void c_user_intensities(disort_state   *ds,
                 "PYDISORT_TRACE_USER_OUTPUT level=%d angle=%d palint=%.17g "
                 "bndint=%.17g result=%.17g\n",
                 lu, iu, palint, bndint, UUM(iu,lu));
+        fprintf(stderr, "PYDISORT_TRACE_USER_MODES");
+        for (iq = 1; iq <= ds->nstr; iq++)
+          fprintf(stderr, " %.17g", GU(iu, iq, lyu));
+        fprintf(stderr, "\n");
       }
 #endif
     }
