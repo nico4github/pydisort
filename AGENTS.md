@@ -152,3 +152,13 @@ Maintain the counted C-DISORT-backed Fortran-parity inventory in
 ``docs/source/fortran_parity.rst``. Update its family and target totals, the
 target status, reference basis, and CPU/H100 CUDA result in the same commit as
 each parity change. A guarded unsupported target remains in the count.
+
+## Approved-plan continuity
+
+When the user has approved a plan, execute its next unblocked task immediately
+after every edit, test, benchmark, report update, and commit. A routine commit
+or successful check is not a handoff point. Do not end a turn to report
+intermediate progress. End only for a completed approved objective, a material
+decision outside the plan, or a genuine blocker that cannot be resolved from
+repository evidence. Keep the plan checklist current and commit ready
+increments without interrupting execution.
