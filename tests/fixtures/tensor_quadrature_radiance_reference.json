@@ -1,0 +1,32 @@
+{
+  "case": "one-layer diffuse quadrature radiance",
+  "provenance": "Native float64 C-DISORT output with usrang disabled.",
+  "nstr": 4,
+  "dtauc": [
+    0.7
+  ],
+  "ssalb": [
+    0.4
+  ],
+  "utau": [
+    0.0,
+    0.7
+  ],
+  "fisot": 0.3183098861837907,
+  "radiance": [
+    [
+      0.3183098861837907,
+      0.3183098861837907,
+      0.048888787570188,
+      0.024671995795833
+    ],
+    [
+      0.151543918434252,
+      0.038327800867735,
+      0.0,
+      0.0
+    ]
+  ],
+  "atol": 1e-05,
+  "rtol": 1e-05
+}

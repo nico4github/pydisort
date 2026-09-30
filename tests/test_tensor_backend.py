@@ -1363,3 +1363,16 @@ def test_tensor_quadrature_intensity_integrates_to_homogeneous_flux(device):
     assert torch.allclose(
         fluxes[..., 1], expected_downward, atol=1e-13, rtol=1e-12
     )
+    reference = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_quadrature_radiance_reference.json"
+        ).read_text()
+    )
+    assert torch.allclose(
+        intensity[0, 0].cpu(),
+        torch.tensor(reference["radiance"], dtype=torch.float64),
+        atol=reference["atol"],
+        rtol=reference["rtol"],
+    )
