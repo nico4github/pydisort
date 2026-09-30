@@ -737,6 +737,57 @@ def extract_tp9_user_intensity_one_layer_m0(
 
 
 @timed(name="tensor_backend.extract_tp9_user_intensity_m0")
+def interpolate_tp9_user_beam_source_m0(
+    beam_source: torch.Tensor,
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    user_mu: torch.Tensor,
+    umu0: torch.Tensor,
+    fbeam: torch.Tensor,
+) -> torch.Tensor:
+    """Interpolate C-DISORT's plane-parallel m=0 beam source to user rays."""
+    nstr = quadrature.cmu.numel()
+    nn = nstr // 2
+    degree = torch.arange(nstr, dtype=user_mu.dtype, device=user_mu.device)
+    ylm_user = user_mu.unsqueeze(0).pow(degree.unsqueeze(-1))
+    ylm_quadrature = quadrature.cmu.unsqueeze(0).pow(degree.unsqueeze(-1))
+    ylm_beam = (-umu0).unsqueeze(-1).pow(degree)
+    # Convert monomials to Legendre polynomials using the standard recurrence.
+    ylm_user[0] = 1.0
+    ylm_quadrature[0] = 1.0
+    ylm_beam[..., 0] = 1.0
+    if nstr > 1:
+        ylm_user[1] = user_mu
+        ylm_quadrature[1] = quadrature.cmu
+        ylm_beam[..., 1] = -umu0
+    for order in range(2, nstr):
+        ylm_user[order] = (
+            (2 * order - 1) * user_mu * ylm_user[order - 1]
+            - (order - 1) * ylm_user[order - 2]
+        ) / order
+        ylm_quadrature[order] = (
+            (2 * order - 1) * quadrature.cmu * ylm_quadrature[order - 1]
+            - (order - 1) * ylm_quadrature[order - 2]
+        ) / order
+        ylm_beam[..., order] = (
+            (2 * order - 1) * (-umu0) * ylm_beam[..., order - 1]
+            - (order - 1) * ylm_beam[..., order - 2]
+        ) / order
+    c_disort_beam_source = torch.cat(
+        (beam_source[..., nn:], beam_source[..., :nn].flip(dims=(-1,))), dim=-1
+    )
+    projected = torch.einsum(
+        "...j,lj,j->...l",
+        c_disort_beam_source,
+        ylm_quadrature,
+        quadrature.cwt,
+    )
+    psi = 0.5 * optics.gl * projected
+    direct = fbeam.unsqueeze(-1) * optics.gl * ylm_beam / (4.0 * torch.pi)
+    return torch.einsum("lu,...l->...u", ylm_user, psi + direct)
+
+
+@timed(name="tensor_backend.extract_tp9_user_intensity_m0")
 def extract_tp9_user_intensity_m0(
     user_eigenvectors: torch.Tensor,
     eigenvalues: torch.Tensor,
@@ -745,6 +796,8 @@ def extract_tp9_user_intensity_m0(
     constants: torch.Tensor,
     user_mu: torch.Tensor,
     fisot: torch.Tensor,
+    user_beam_source: torch.Tensor | None = None,
+    umu0: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """C-DISORT source-free m=0 user rays, including all crossed layers."""
     nstr = user_eigenvectors.shape[-1]
@@ -752,6 +805,13 @@ def extract_tp9_user_intensity_m0(
     nlyr = optics.dtaucpr.shape[-1]
     if constants.shape != (*user_eigenvectors.shape[:-3], nlyr * nstr):
         raise ValueError("constants are incompatible with user eigenvectors")
+    if (user_beam_source is None) != (umu0 is None):
+        raise ValueError("user_beam_source and umu0 must be supplied together")
+    if user_beam_source is not None and user_beam_source.shape != (
+        *optics.dtaucpr.shape,
+        user_mu.numel(),
+    ):
+        raise ValueError("user_beam_source is incompatible with user angles")
     constants = constants.reshape(*constants.shape[:-1], nlyr, nstr)
     kk = torch.cat((-eigenvalues.flip(-1), eigenvalues), dim=-1)
     starts = torch.cat(
@@ -874,6 +934,58 @@ def extract_tp9_user_intensity_m0(
                         (target == lc) & (dtau1 < dtau - 1e-6),
                         partial,
                         torch.zeros_like(partial),
+                    )
+                if user_beam_source is not None and umu0 is not None:
+                    exp0 = torch.exp(-tau / umu0)
+                    exp1 = torch.exp((tau - begin) / mu)
+                    exp2 = torch.exp((tau - end) / mu)
+                    expbea_begin = torch.exp(-begin / umu0)
+                    expbea_end = torch.exp(-end / umu0)
+                    denominator = 1.0 + mu / umu0
+                    sign = -1.0 if mu < 0 else 1.0
+                    full_beam = (
+                        user_beam_source[..., lc, iu]
+                        * (exp1 * expbea_begin - exp2 * expbea_end)
+                        * sign
+                        / denominator
+                    )
+                    beam_limit = (
+                        user_beam_source[..., lc, iu] * dtau / umu0 * exp0
+                    )
+                    full_beam = torch.where(
+                        denominator.abs() < 1e-4, beam_limit, full_beam
+                    )
+                    crosses = lc < target if mu < 0 else lc > target
+                    value += torch.where(
+                        crosses, full_beam, torch.zeros_like(full_beam)
+                    )
+                    partial_beam = (
+                        user_beam_source[..., lc, iu]
+                        * (
+                            exp0
+                            - (
+                                expbea_begin * exp1
+                                if mu < 0
+                                else expbea_end * exp2
+                            )
+                        )
+                        / denominator
+                    )
+                    partial_limit = (
+                        user_beam_source[..., lc, iu] * dtau1 / umu0 * exp0
+                    )
+                    partial_beam = torch.where(
+                        denominator.abs() < 1e-4,
+                        partial_limit,
+                        partial_beam,
+                    )
+                    partial_valid = (target == lc) & (
+                        dtau1 > 1e-6 if mu < 0 else dtau1 < dtau - 1e-6
+                    )
+                    value += torch.where(
+                        partial_valid,
+                        partial_beam,
+                        torch.zeros_like(partial_beam),
                     )
             if mu < 0:
                 value += fisot * torch.exp(tau / mu)

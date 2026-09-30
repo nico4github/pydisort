@@ -48,8 +48,7 @@ single-scattering albedos, Henyey-Greenstein moments, and both symmetric and
 asymmetric user angles. It also verifies the automatic delta-M selection used
 by C-DISORT when `PMOM(nstr)` is nonzero.
 
-The next capability is step 3: add m=0 user-angle particular sources one at a
-time, starting with a source-only beam fixture, then thermal, then general
-source. Each fixture must be emitted by a dedicated native diagnostic with its
+Step 3 has accepted its beam-only m=0 user-angle fixture on CPU and CUDA.
+The next source-only increments are thermal, then general source. Each fixture must be emitted by a dedicated native diagnostic with its
 input contract stored alongside the values before a combined-source gate is
 introduced. Fourier m>0 work remains after those source gates.

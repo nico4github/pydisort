@@ -186,6 +186,14 @@ DISPATCH_MACRO inline void c_interp_source(disort_state   *ds,
 	}
 	ZBEAM(iu,lc) = sum;
       }
+#ifndef __CUDA_ARCH__
+      if (mazim == 0 && getenv("PYDISORT_TRACE_USER_SOURCE") != NULL) {
+        fprintf(stderr, "PYDISORT_TRACE_USER_BEAM layer=%d", lc);
+        for (iu = 1; iu <= ds->numu; iu++)
+          fprintf(stderr, " %.17g", ZBEAM(iu,lc));
+        fprintf(stderr, "\n");
+      }
+#endif
     }
   }
   if (ds->flag.general_source > 0.) {
@@ -429,5 +437,4 @@ DISPATCH_MACRO inline void c_set_coefficients_beam_source(disort_state *ds,
   return;
 }
 /*============================= end c_set_coefficients_beam_source() ====*/
-
 

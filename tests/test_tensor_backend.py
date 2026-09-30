@@ -1482,16 +1482,19 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
     [
         "tensor_user_ray_two_layer_reference.json",
         "tensor_user_ray_five_layer_reference.json",
+        "tensor_user_ray_beam_five_layer_reference.json",
     ],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
     from pydisort.tensor_backend import (
         build_reduced_eigen_matrix,
+        build_tp9_beam_source,
         build_tp9_boundary_system,
         extract_tp9_user_intensity_m0,
         gaussian_quadrature,
         interpolate_tp9_eigenvectors_m0,
+        interpolate_tp9_user_beam_source_m0,
         prepare_atmosphere,
         prepare_layer_optics,
         prepare_output_grid,
@@ -1545,9 +1548,40 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
     values, vectors = solve_reduced_eigenproblem(
         build_reduced_eigen_matrix(optics, quadrature, nstr=4)
     )
-    constants = solve_tp9_boundary_system(
-        build_tp9_boundary_system(vectors, values, optics, fisot)
-    )
+    if "fbeam" in fixture:
+        umu0 = torch.full(
+            (1, 1), fixture["umu0"], dtype=torch.float64, device=device
+        )
+        fbeam = torch.full(
+            (1, 1), fixture["fbeam"], dtype=torch.float64, device=device
+        )
+        beam_source = build_tp9_beam_source(
+            optics, quadrature, umu0, fbeam, nstr=4
+        )
+        constants = solve_tp9_boundary_system(
+            build_tp9_boundary_system(
+                vectors,
+                values,
+                optics,
+                fisot,
+                beam_source,
+                None,
+                umu0,
+                None,
+                None,
+                None,
+                None,
+                None,
+                quadrature,
+                fbeam,
+            )
+        )
+    else:
+        umu0 = None
+        beam_source = None
+        constants = solve_tp9_boundary_system(
+            build_tp9_boundary_system(vectors, values, optics, fisot)
+        )
     user_mu = torch.tensor(
         fixture["user_mu"], dtype=torch.float64, device=device
     )
@@ -1559,6 +1593,12 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         constants,
         user_mu,
         fisot,
+        None
+        if beam_source is None or umu0 is None
+        else interpolate_tp9_user_beam_source_m0(
+            beam_source, optics, quadrature, user_mu, umu0, fbeam
+        ),
+        umu0,
     )
     expected = torch.tensor(
         fixture["radiance"], dtype=torch.float64, device=device

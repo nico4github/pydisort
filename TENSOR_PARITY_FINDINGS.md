@@ -91,6 +91,16 @@ to 48 streams and 299 tabulated phase moments through a 64-optical-depth cloud.
 Their native fixtures pass on CPU and CUDA at 1e-8; the observed maximum
 difference is below 3.2e-10.
 
+### Beam-only user-angle source
+
+- The five-layer beam-only fixture uses `fbeam = pi`, `umu0 = 0.5`, zero
+diffuse illumination, a black Lambertian lower boundary, and automatic
+delta-M. It passes on CPU and CUDA at float64 rounding, including the
+`mu = -umu0` L'Hopital limit.
+- The user-angle beam interpolation restores C-DISORT quadrature order from
+the flux-path storage order before projection. `PYDISORT_TRACE_USER_SOURCE`
+retains the per-layer native user-beam source values for future diagnostics.
+
 The tensor radiance path now has its first direct user-angle gate. It ports
 C-DISORT `c_interp_eigenvec`, the one-layer homogeneous m=0 ray integral, and
 the attenuated diffuse top boundary. The `mu=(-0.5, 0.5)` native C-DISORT
