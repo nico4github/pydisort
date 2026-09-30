@@ -125,3 +125,19 @@ def test_prepare_output_grid_matches_delta_m_layer_mapping():
     assert torch.allclose(
         grid.utaupr[..., -1], optics.taucpr[..., -1], atol=0, rtol=0
     )
+
+
+def test_gaussian_quadrature_has_disort_symmetry_and_normalization():
+    from pydisort.tensor_backend import gaussian_quadrature
+
+    quadrature = gaussian_quadrature(32, device="cpu")
+    assert quadrature.cmu.shape == (32,)
+    assert torch.all(quadrature.cmu[:16] > 0)
+    assert torch.equal(quadrature.cmu[16:], -quadrature.cmu[:16])
+    assert torch.equal(quadrature.cwt[16:], quadrature.cwt[:16])
+    assert torch.allclose(
+        quadrature.cwt.sum(),
+        torch.tensor(2.0, dtype=torch.float64),
+        atol=1e-14,
+        rtol=0,
+    )

@@ -182,3 +182,32 @@ def prepare_output_grid(
     else:
         utaupr = utau.expand_as(gather)
     return TensorOutputGrid(layru=layru0 + 1, utaupr=utaupr)
+
+
+@dataclass(frozen=True)
+class TensorQuadrature:
+    """DISORT computational angle cosines and weights."""
+
+    cmu: torch.Tensor
+    cwt: torch.Tensor
+
+
+@timed(name="tensor_backend.gaussian_quadrature")
+def gaussian_quadrature(
+    nstr: int, *, device: torch.device | str
+) -> TensorQuadrature:
+    """Generate C-DISORT's positive/negative Gauss-Legendre angle grid."""
+    if nstr < 2 or nstr % 2:
+        raise ValueError("nstr must be a positive even DISORT stream count")
+    nn = nstr // 2
+    index = torch.arange(1, nn, dtype=torch.float64, device=device)
+    offdiag = index / torch.sqrt(4.0 * index.square() - 1.0)
+    matrix = torch.diag(offdiag, diagonal=1) + torch.diag(offdiag, diagonal=-1)
+    roots, vectors = torch.linalg.eigh(matrix)
+    weights = 2.0 * vectors[0].square()
+    positive = 0.5 * (roots + 1.0)
+    positive_weights = 0.5 * weights
+    return TensorQuadrature(
+        cmu=torch.cat((positive, -positive)),
+        cwt=torch.cat((positive_weights, positive_weights)),
+    )
