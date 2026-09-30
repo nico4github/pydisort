@@ -1,25 +1,19 @@
 diff --git a/cdisort213/intensity.h b/cdisort213/intensity.h
-index 29ba627..8c059df 100644
+index 8c059df..a7c036c 100644
 --- a/cdisort213/intensity.h
 +++ b/cdisort213/intensity.h
-@@ -1270,6 +1270,15 @@ DISPATCH_MACRO inline void c_user_intensities(disort_state   *ds,
-         GU(iu,iq,lc) *= LL(iq,lc);
+@@ -1555,6 +1555,14 @@ DISPATCH_MACRO inline void c_user_intensities(disort_state   *ds,
+         bndint = (bnddfu+bnddir+delm0*EMU(iu)*bplanck+ds->bc.fluor)*exp((UTAUPR(lu)-TAUCPR(ds->nlyr))/UMU(iu));
        }
-     }
+       UUM(iu,lu) = palint+plkint+bndint+genint;
 +#ifndef __CUDA_ARCH__
-+    if (mazim == 0 && getenv("PYDISORT_TRACE_USER_RAY") != NULL) {
-+      fprintf(stderr, "PYDISORT_TRACE_USER_GU layer=%d", lc);
-+      for (iu = 1; iu <= ds->numu; iu++)
-+        for (iq = 1; iq <= ds->nstr; iq++)
-+          fprintf(stderr, " %.17g", GU(iu, iq, lc));
-+      fprintf(stderr, "\n");
-+    }
++      if (mazim == 0 && getenv("PYDISORT_TRACE_USER_RAY") != NULL) {
++        fprintf(stderr,
++                "PYDISORT_TRACE_USER_OUTPUT level=%d angle=%d palint=%.17g "
++                "bndint=%.17g result=%.17g\n",
++                lu, iu, palint, bndint, UUM(iu,lu));
++      }
 +#endif
+     }
    }
  
-   /*
-@@ -1590,4 +1599,3 @@ DISPATCH_MACRO inline double c_xi_func(double umu1,
- }
- 
- /*============================= end of c_xi_func() ======================*/
--

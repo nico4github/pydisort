@@ -114,7 +114,8 @@ pending.
 `0003-user-ray-trace.patch` retains an opt-in CPU diagnostic for the
 post-constant user-angle modes in `c_user_intensities`. Set
 `PYDISORT_TRACE_USER_RAY` only while investigating a user-ray mismatch; it
-does not affect ordinary solver runs.
+does not affect ordinary solver runs. It also records the final homogeneous
+ray integral, boundary term, and output value at each traced user point.
 
 ## Rejected hypotheses
 

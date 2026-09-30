@@ -1555,6 +1555,14 @@ DISPATCH_MACRO inline void c_user_intensities(disort_state   *ds,
         bndint = (bnddfu+bnddir+delm0*EMU(iu)*bplanck+ds->bc.fluor)*exp((UTAUPR(lu)-TAUCPR(ds->nlyr))/UMU(iu));
       }
       UUM(iu,lu) = palint+plkint+bndint+genint;
+#ifndef __CUDA_ARCH__
+      if (mazim == 0 && getenv("PYDISORT_TRACE_USER_RAY") != NULL) {
+        fprintf(stderr,
+                "PYDISORT_TRACE_USER_OUTPUT level=%d angle=%d palint=%.17g "
+                "bndint=%.17g result=%.17g\n",
+                lu, iu, palint, bndint, UUM(iu,lu));
+      }
+#endif
     }
   }
 
