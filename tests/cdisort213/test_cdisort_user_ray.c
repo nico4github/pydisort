@@ -1,5 +1,5 @@
 /******************************************************************************
- * test_cdisort_09.c
+ * test_cdisort_user_ray.c
  *
  * A standalone driver for “Test Problem 09” from the original test suite,
  * with command-line control over the number of streams (nstr) and layers
@@ -37,35 +37,17 @@
 #define GOODUU(iu, lu, j) \
   good.uu[(iu) - 1 + (((lu) - 1 + ((j) - 1) * ds.ntau) * ds.numu)]
 
-void run_disort_test09(int nstr, int nlyr, double ssalb);
+void run_disort_user_ray(void);
 
-int main(int argc, char **argv) {
-  int nstr = 32;
-  int nlyr = 100;
-  int nwave = 1000;  // Number of wavenumbers to loop through
-  double ssalb = 0.003;
-
-  if (argc >= 3) {
-    nstr = atoi(argv[1]);
-    nlyr = atoi(argv[2]);
-    nwave = atoi(argv[3]);
-    ssalb = atof(argv[4]);
-  } else {
-    printf("Usage: %s [nstr nlyr] (default %d %d)\n", argv[0], nstr, nlyr);
-  }
-
-  printf("Running DISORT test 09 with nstr=%d, nlyr=%d, nwave=%d, ssalb=%f\n\n",
-         nstr, nlyr, nwave, ssalb);
-
-  for (int i = 0; i < nwave; ++i) {
-    run_disort_test09(nstr, nlyr, ssalb);
-  }
-
-  printf("\nTest 09 completed.\n");
+int main(void) {
+  run_disort_user_ray();
   return 0;
 }
 
-void run_disort_test09(int nstr, int nlyr, double ssalb) {
+void run_disort_user_ray(void) {
+  const int nstr = 4;
+  const int nlyr = 2;
+  const double ssalb = 0.;
    int icas, lc, k;
   const int ncase = 1;
   double gg;
@@ -97,7 +79,7 @@ void run_disort_test09(int nstr, int nlyr, double ssalb) {
   ds.nlyr = nlyr;
   ds.nphase = ds.nstr;
   ds.nmom = ds.nstr;
-  ds.ntau = 5;
+  ds.ntau = 4;
   ds.numu = 4;
   ds.nphi = 1;
 
@@ -121,22 +103,21 @@ void run_disort_test09(int nstr, int nlyr, double ssalb) {
 
         /* Set optical properties per layer */
         for (lc = 1; lc <= ds.nlyr; ++lc) {
-          DTAUC(lc) = ((double)lc / ds.nlyr) * 6;
-          SSALB(lc) = 0.6 + (double)lc * ssalb;
+          DTAUC(lc) = lc == 1 ? 0.2 : 0.5;
+          SSALB(lc) = lc == 1 ? 0.4 : 0.7;
         }
 
         /* Tau grid" (fixed 5 points) */
         UTAU(1) = 0.;
-        UTAU(2) = 1.05;
-        UTAU(3) = 2.1;
-        UTAU(4) = 6.;
-        UTAU(5) = 21.;
+        UTAU(2) = 0.2;
+        UTAU(3) = 0.45;
+        UTAU(4) = 0.7;
 
         /* Cosine angles */
-        UMU(1) = -1.;
-        UMU(2) = -0.2;
-        UMU(3) = 0.2;
-        UMU(4) = 1.;
+        UMU(1) = -0.5;
+        UMU(2) = -0.3;
+        UMU(3) = 0.4;
+        UMU(4) = 0.5;
 
         /* Azimuthal angle */
         PHI(1) = 60.;
