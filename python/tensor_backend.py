@@ -630,6 +630,9 @@ def solve_tp9_flux(
     fbeam: torch.Tensor | None = None,
     thermal_xr0: torch.Tensor | None = None,
     thermal_xr1: torch.Tensor | None = None,
+    temperature: torch.Tensor | None = None,
+    wavenumber_lower: torch.Tensor | None = None,
+    wavenumber_upper: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Run the connected pure-PyTorch TP9a flux subset end to end.
 

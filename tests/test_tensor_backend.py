@@ -624,3 +624,36 @@ def test_thermal_coefficients_preserve_an_isothermal_planck_source():
     expected = planck_band_radiance(temperature[..., :1], lower, upper)
     assert torch.equal(xr1, torch.zeros_like(xr1))
     assert torch.allclose(xr0, expected.expand_as(xr0), atol=1e-14, rtol=0)
+
+
+def test_solve_tp9_flux_accepts_temperature_and_wavenumber_inputs():
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    common = {
+        "nstr": 4,
+        "nmom": 4,
+        "temperature": torch.full((1, 1, 2), 600.0, dtype=torch.float64),
+        "wavenumber_lower": torch.full((1, 1), 999.0, dtype=torch.float64),
+        "wavenumber_upper": torch.full((1, 1), 1000.0, dtype=torch.float64),
+    }
+    fluxes = solve_tp9_flux(
+        prop,
+        torch.tensor([0.0, 1.0], dtype=torch.float64),
+        torch.zeros((1, 1), dtype=torch.float64),
+        **common,
+    )
+    assert torch.isfinite(fluxes).all()
+    assert torch.allclose(
+        fluxes[0, 0, 0, 1],
+        torch.zeros((), dtype=torch.float64),
+        atol=1e-14,
+        rtol=0,
+    )
+    assert torch.allclose(
+        fluxes[0, 0, 1, 0],
+        torch.zeros((), dtype=torch.float64),
+        atol=1e-14,
+        rtol=0,
+    )
