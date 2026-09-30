@@ -935,6 +935,13 @@ DISPATCH_MACRO inline void c_upbeam_general_source(disort_state *ds,
     ZZG(nn+iq,  lc) = ZJG(iq);
     ZZG(nn-iq+1,lc) = ZJG(iq+nn);
   }
+#ifndef __CUDA_ARCH__
+  if (maz == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+    fprintf(stderr, "PYDISORT_TRACE_GENERAL layer=%d zzg", lc);
+    for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", ZZG(iq,lc));
+    fprintf(stderr, "\n");
+  }
+#endif
  
   return;
 }

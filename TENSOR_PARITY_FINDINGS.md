@@ -140,3 +140,5 @@ float64 parity gates pass. It is not a second solver rewrite.
   the missing five thermal continuity terms in the tensor system. Adding the
   exact C expression restored RHS parity below `5e-15` and promoted thermal
   TP9c CPU/CUDA fixtures to required passes.
+
+- A nonuniform two-layer general-source trace confirms both C ZZG vectors and every source-bearing c_solve0 boundary RHS entry agree with the tensor path at float64 rounding. The independent C and torch eigensystem/boundary solves produce final fluxes within 5e-8; the stored two-layer fixture therefore uses 1e-7 absolute tolerance. The one-layer analytical source gate remains at 1e-12.

@@ -1166,3 +1166,34 @@ def test_tensor_zero_general_source_recovers_no_source_flux(device):
         **common,
     )
     assert torch.allclose(sourced, plain, atol=1e-14, rtol=1e-12)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_multilayer_general_source_matches_cdisort_fixture(device):
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_general_source_two_layer_reference.json"
+        ).read_text()
+    )
+    nstr = fixture["nstr"]
+    prop = torch.tensor(fixture["prop"], dtype=torch.float64, device=device)
+    result = solve_tp9_flux(
+        prop.unsqueeze(0).unsqueeze(0),
+        torch.tensor(fixture["utau"], dtype=torch.float64, device=device),
+        torch.zeros((1, 1), dtype=torch.float64, device=device),
+        nstr=nstr,
+        nmom=nstr,
+        general_source_computational=torch.tensor(
+            fixture["computational"], dtype=torch.float64, device=device
+        ),
+    )
+    assert torch.allclose(
+        result[0, 0].cpu(),
+        torch.tensor(fixture["flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
+    )

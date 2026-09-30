@@ -1,0 +1,106 @@
+{
+  "case": "C-DISORT nonuniform two-layer Fourier-zero general source",
+  "provenance": "Native float64 C-DISORT run; ZZG and boundary RHS are traced to float64 rounding. Final flux uses a 1e-7 tolerance because independent C and PyTorch eigensolvers amplify this source pattern by about 5e-8.",
+  "nstr": 4,
+  "prop": [
+    [
+      0.2,
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.3,
+      0.7,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "utau": [
+    0.0,
+    0.2,
+    0.5
+  ],
+  "computational": [
+    [
+      [
+        [
+          [
+            0.1,
+            0.2,
+            0.4,
+            0.8
+          ],
+          [
+            0.7,
+            0.5,
+            0.3,
+            0.15
+          ]
+        ],
+        [
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        ],
+        [
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        ],
+        [
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        ]
+      ]
+    ]
+  ],
+  "flux": [
+    [
+      0.9554893212692313,
+      6.383242376653165e-17
+    ],
+    [
+      0.45231873441896786,
+      0.2202111535126092
+    ],
+    [
+      0.0,
+      1.0886574279794987
+    ]
+  ],
+  "atol": 1e-07,
+  "rtol": 1e-07
+}

@@ -31,7 +31,7 @@ spectral bounds, and glint-sensitive validation across geometry and wind.
 ## Recommendation
 
 For the common case, Lambertian is sufficient; add Hapke for particulate
-planetary surfaces. Implement RPV only when land/vegetation reflectance or
+planetary surfaces. The current reconstruction scope retains those two models and explicitly defers RPV, CAM, and AMB. Implement RPV only when land/vegetation reflectance or
 legacy configuration compatibility is required. Defer CAM and AMB until a
 concrete science case requires them.
 
