@@ -43,6 +43,23 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 - In the six-layer, black-surface, anisotropic beam probe, this reduced the
   top upward-flux error from about `+5.84e-2` to `-6.95e-4`.
 
+### C-DISORT beam-source trace
+
+- `0002-upbeam-trace.patch` adds a CPU-only, opt-in entry and `c_upbeam`
+  trace. `make rebuild` is now the required local workflow because the Python
+  binding inlines the C-DISORT solver as well as linking its shared libraries.
+- On the black-surface Problem 9c beam probe, C-DISORT reports `fbeam = pi`,
+  `umu0 = 0.5`, eight streams, six layers, plane-parallel geometry, and
+  Planck mode. These are the intended probe inputs.
+- For the flux-relevant `mazim=0` component, all six C `YLM0` vectors,
+  pre-solve `ZJ` RHS vectors, and post-solve vectors match the tensor
+  calculation to float64 rounding. The largest observed difference is below
+  `5e-15`.
+- The remaining beam-only flux gap is therefore downstream of `c_upbeam`:
+  it is in `ZZ` consumption while assembling/matching the boundary system or
+  reconstructing output fluxes. The beam source and its linear solve are no
+  longer candidates.
+
 ## Active divergence
 
 The active probe is Problem 9c with thermal sources disabled, diffuse top
@@ -75,11 +92,14 @@ a normal pass until the C-DISORT source equation is reproduced.
 
 ## Next investigation
 
-Trace `c_upbeam` term by term using the established black-surface beam probe:
+Trace the first downstream use of the verified beam vectors with the same
+black-surface probe:
 
-1. Compare the C `ZJ` right-hand side constructed from `GL`, `YLMC`, and
-   `YLM0` against the tensor source before solving.
-2. Compare the solved particular vectors before the `ZZ` storage transform.
+1. Compare C-DISORT's `c_solve0` boundary RHS entries that consume `ZZ` with
+   the tensor boundary RHS before its dense solve. This catches direction and
+   layer-interface indexing independently of the beam source.
+2. If that matches, compare the solved integration constants and then the
+   `c_fluxes` beam contribution at each output depth.
 3. Correct the first divergent term, promote the beam fixture from strict
    expected-fail to required CPU/CUDA parity, then repeat for thermal-only.
 4. Only then add the full Problem 9c flux fixture.

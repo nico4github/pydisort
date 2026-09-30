@@ -657,6 +657,20 @@ DISPATCH_MACRO inline void c_upbeam(disort_state *ds,
     }
     ZJ(iq) = (2.-delm0)*ds->bc.fbeam*sum/(4.*M_PI);
   }
+#ifndef __CUDA_ARCH__
+  /*
+   * Opt-in parity trace for the tensor reconstruction.  It is deliberately
+   * emitted before and after the solve so a caller can compare C-DISORT's
+   * RHS and particular solution without guessing at the first divergence.
+   */
+  if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+    fprintf(stderr, "PYDISORT_TRACE_UPBEAM layer=%d rhs", lc);
+    for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", ZJ(iq));
+    fprintf(stderr, " ylm0");
+    for (iq = 0; iq < ds->nstr; iq++) fprintf(stderr, " %.17g", ylm0[iq]);
+    fprintf(stderr, "\n");
+  }
+#endif
   /*
    * Find L-U (lower/upper triangular) decomposition of ARRAY and see if it is nearly singular
    * (NOTE:  ARRAY is altered)
@@ -683,6 +697,13 @@ DISPATCH_MACRO inline void c_upbeam(disort_state *ds,
    * return solution(s) in ZJ
    */
   c_sgesl(array,ds->nstr,ds->nstr,ipvt,zj,0);
+#ifndef __CUDA_ARCH__
+  if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+    fprintf(stderr, "PYDISORT_TRACE_UPBEAM layer=%d solution", lc);
+    for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", ZJ(iq));
+    fprintf(stderr, "\n");
+  }
+#endif
   for (iq = 1; iq <= nn; iq++) {
     ZZ(nn+iq,  lc) = ZJ(iq);
     ZZ(nn-iq+1,lc) = ZJ(iq+nn);

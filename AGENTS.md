@@ -167,3 +167,23 @@ intermediate progress. End only for a completed approved objective, a material
 decision outside the plan, or a genuine blocker that cannot be resolved from
 repository evidence. Keep the plan checklist current and commit ready
 increments without interrupting execution.
+
+## Persistent parity divergence
+
+Do a bounded source-level audit first. If a C-DISORT/tensor parity divergence
+remains unresolved after that audit, add a narrowly scoped, opt-in CPU trace to
+the relevant C stage before making further speculative changes. Record the
+trace in `cdisort_patches/`, document it in `TENSOR_PARITY_FINDINGS.md`, and
+prepare all trace points before one rebuild. Compare the traced C intermediate
+values with the tensor stage, then remove or retain the diagnostic only when it
+has continuing regression value. Do not rebuild repeatedly for uninstrumented
+guesses.
+
+## Local extension rebuild
+
+For any C-DISORT header, C++, CUDA, or binding change, use `make rebuild`.
+It is the authoritative local development workflow: it builds the CMake
+libraries, rebuilds the inline C-DISORT Python extension with the venv's
+Ninja executable on `PATH`, installs the matching artifacts into the same
+venv, and verifies the imported package location. Do not test a partial
+shared-library copy: the binding contains inline solver specializations.

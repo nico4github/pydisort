@@ -348,6 +348,15 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
 	      disort_output *out,
         emission_func_t emi_func)
 {
+#ifndef __CUDA_ARCH__
+  if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+    fprintf(stderr,
+            "PYDISORT_TRACE_ENTRY fbeam=%.17g umu0=%.17g nstr=%d "
+            "nlyr=%d spher=%d planck=%d\n",
+            ds->bc.fbeam, ds->bc.umu0, ds->nstr, ds->nlyr,
+            ds->flag.spher, ds->flag.planck);
+  }
+#endif
   int
     self_tested = 1;  // cli: disable self-test by default
   int

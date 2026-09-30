@@ -383,7 +383,10 @@ ctest --test-dir build --output-on-failure
 ```
 
 The pip step links the C++ library from `build/lib`; it does not run CMake.
-`-v` lists individual test cases and `-rs` explains skips. CUDA checks are
+For an existing local development environment, use `make rebuild` after a
+C-DISORT header, C++, CUDA, or binding change. It rebuilds only stale native
+artifacts, synchronizes the extension and shared libraries into `.venv`, and
+verifies the imported package. `-v` lists individual test cases and `-rs` explains skips. CUDA checks are
 skipped when their GPU requirements are not met; counts can change as tests
 are added. See the [contributor guide](CONTRIBUTING.md) for development tools
 and documentation checks.

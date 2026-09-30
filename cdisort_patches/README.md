@@ -35,3 +35,14 @@ c++ -std=c++17 -g -O1 -fsanitize=address,undefined \
 
 The `.c` driver is compiled as C++ because the fork's solver is header-only C++.
 It is also registered with CTest as `test_cdisort_special_boundary.release`.
+
+## 0002-upbeam-trace.patch
+
+This applied diagnostic patch adds an opt-in CPU C-DISORT entry trace and a trace around `c_upbeam`.
+Set `PYDISORT_TRACE_UPBEAM=1` before a small CPU C-DISORT run to emit the
+the C-DISORT call configuration, per-layer `YLM0`, pre-solve `ZJ` right-hand side,
+and post-solve `ZJ` vector to standard error. It is compiled out of CUDA device
+code and is inactive unless
+the environment variable is set. The tensor reconstruction uses this trace to
+compare the first divergent beam-source quantity without repeated speculative
+solver rebuilds.
