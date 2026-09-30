@@ -143,3 +143,26 @@ stage. A Python/PyTorch implementation can be a practical execution backend
 once its hot work is tensorized. The main engineering work is deliberately
 changing data layout from per-solve pointer graphs to batched tensors; that
 change is the source of both rapid Python iteration and possible CUDA benefit.
+
+## Restricted TP9 reconstruction tracker
+
+This is a 15-milestone implementation tracker. Milestones are not equal in
+size; the remaining boundary and flux stages carry most of the work.
+
+| # | Milestone | Status |
+| ---: | --- | --- |
+| 1 | Freeze restricted TP9 float64 contract and Fortran fixture | Complete |
+| 2 | Opt-in nested wall/CUDA timing and incremental text log | Complete |
+| 3 | Batched atmosphere state preparation | Complete |
+| 4 | Delta-M layer optics | Complete |
+| 5 | User output-depth grid | Complete |
+| 6 | Device Gauss-Legendre quadrature | Complete |
+| 7 | Batched reduced eigenproblem matrix | Complete |
+| 8 | Batched eigensolve and full eigenvector reconstruction | Complete |
+| 9 | Layer-continuity factors | Complete |
+| 10 | Generic batched block-tridiagonal solver | Complete |
+| 11 | C-DISORT TP9 boundary block and RHS assembly | Active |
+| 12 | Beam/source terms and constants of integration | Pending |
+| 13 | Flux extraction on the user output grid | Pending |
+| 14 | Complete tensor flow C-DISORT/Fortran parity tests | Pending |
+| 15 | CPU/H100 end-to-end timing, incremental log, and optimization baseline | Pending |
