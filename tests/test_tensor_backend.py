@@ -352,7 +352,19 @@ def test_absorption_only_flux_matches_the_discrete_ordinate_reference():
     )
 
 
-def test_tp9a_flux_matches_self_contained_reference_fixture():
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        pytest.param(
+            "cuda",
+            marks=pytest.mark.skipif(
+                not torch.cuda.is_available(), reason="CUDA unavailable"
+            ),
+        ),
+    ],
+)
+def test_tp9a_flux_matches_self_contained_reference_fixture(device):
     """The first complete scattering reference runs without C or Fortran."""
     from pydisort.tensor_backend import (
         build_reduced_eigen_matrix,
@@ -375,22 +387,26 @@ def test_tp9a_flux_matches_self_contained_reference_fixture():
     nstr = fixture["nstr"]
     dtauc = torch.tensor(fixture["dtauc"], dtype=torch.float64)
     ssalb = torch.tensor(fixture["ssalb"], dtype=torch.float64)
-    prop = torch.zeros((1, 1, dtauc.numel(), 2 + nstr), dtype=torch.float64)
-    prop[..., 0] = dtauc
-    prop[..., 1] = ssalb
+    prop = torch.zeros(
+        (1, 1, dtauc.numel(), 2 + nstr), dtype=torch.float64, device=device
+    )
+    prop[..., 0] = dtauc.to(device)
+    prop[..., 1] = ssalb.to(device)
     atmosphere = prepare_atmosphere(prop, nstr=nstr, nmom=nstr)
     optics = prepare_layer_optics(atmosphere, nstr=nstr, deltam=False)
-    quadrature = gaussian_quadrature(nstr, device="cpu")
+    quadrature = gaussian_quadrature(nstr, device=device)
     values, vectors = solve_reduced_eigenproblem(
         build_reduced_eigen_matrix(optics, quadrature, nstr=nstr)
     )
     grid = prepare_output_grid(
-        torch.tensor(fixture["user_tau"], dtype=torch.float64),
+        torch.tensor(fixture["user_tau"], dtype=torch.float64, device=device),
         atmosphere,
         optics,
         deltam=False,
     )
-    fisot = torch.full((1, 1), fixture["fisot"], dtype=torch.float64)
+    fisot = torch.full(
+        (1, 1), fixture["fisot"], dtype=torch.float64, device=device
+    )
     constants = solve_tp9_boundary_system(
         build_tp9_boundary_system(vectors, values, optics, fisot)
     )
@@ -398,7 +414,7 @@ def test_tp9a_flux_matches_self_contained_reference_fixture():
         vectors, values, optics, grid, quadrature, constants
     )
     assert torch.allclose(
-        fluxes[0, 0],
+        fluxes[0, 0].cpu(),
         torch.tensor(fixture["flux"], dtype=torch.float64),
         atol=fixture["atol"],
         rtol=fixture["rtol"],
