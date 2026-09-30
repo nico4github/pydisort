@@ -659,6 +659,53 @@ def test_tensor_thermal_surface_flux_matches_fortran_validated_fixture(device):
     )
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_thermal_lambertian_flux_matches_reference_fixture(device):
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_thermal_lambertian_flux_reference.json"
+        ).read_text()
+    )
+    nstr = fixture["nstr"]
+    prop = torch.zeros((1, 1, 1, 2 + nstr), dtype=torch.float64, device=device)
+    prop[..., 0] = fixture["dtauc"][0]
+    prop[..., 1] = fixture["ssalb"][0]
+    scalar_inputs = {
+        name: torch.full(
+            (1, 1), fixture[name], dtype=torch.float64, device=device
+        )
+        for name in (
+            "bottom_temperature",
+            "top_temperature",
+            "top_emissivity",
+            "surface_albedo",
+            "wavenumber_lower",
+            "wavenumber_upper",
+        )
+    }
+    fluxes = solve_tp9_flux(
+        prop,
+        torch.tensor(fixture["user_tau"], dtype=torch.float64, device=device),
+        torch.zeros((1, 1), dtype=torch.float64, device=device),
+        nstr=nstr,
+        nmom=nstr,
+        temperature=torch.tensor(
+            fixture["temperature"], dtype=torch.float64, device=device
+        ).reshape(1, 1, -1),
+        **scalar_inputs,
+    )
+    assert torch.allclose(
+        fluxes[0, 0].cpu(),
+        torch.tensor(fixture["flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
+    )
+
+
 def test_tp9_thermal_source_matches_nonscattering_c_upisot_solution():
     from pydisort.tensor_backend import (
         build_tp9_thermal_source,

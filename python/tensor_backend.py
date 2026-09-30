@@ -443,8 +443,12 @@ def build_tp9_boundary_system(
             raise ValueError("quadrature is incompatible with eigenvectors")
         if quadrature.cmu.device != eigenvectors.device:
             raise ValueError("quadrature must share eigenvector device")
+        reflection_weights = (quadrature.cwt[:nn] * quadrature.cmu[:nn]).view(
+            *((1,) * len(batch)), nn
+        )
     else:
         surface_albedo = torch.zeros_like(fisot)
+        reflection_weights = None
 
     top = eigenvectors[..., 0, :nn, :].flip(dims=(-2,))
     matrix[..., :nn, :nn] = top[..., :nn] * factors[..., 0, :].flip(
@@ -463,6 +467,20 @@ def build_tp9_boundary_system(
         rhs[..., -nn:] -= thermal0[..., -1, nn:] + thermal1[
             ..., -1, nn:
         ] * optics.taucpr[..., -1].unsqueeze(-1)
+        if reflection_weights is not None:
+            thermal_downward = thermal0[..., -1, :nn].flip(
+                dims=(-1,)
+            ) + thermal1[..., -1, :nn].flip(dims=(-1,)) * optics.taucpr[
+                ..., -1
+            ].unsqueeze(
+                -1
+            )
+            reflected_thermal = (
+                2.0
+                * surface_albedo
+                * torch.sum(thermal_downward * reflection_weights, dim=-1)
+            )
+            rhs[..., -nn:] += reflected_thermal.unsqueeze(-1)
     if (thermal_top is None) != (thermal_bottom is None):
         raise ValueError(
             "thermal top and bottom sources must be supplied together"
@@ -785,6 +803,8 @@ def solve_tp9_flux(
         thermal_bottom = planck_band_radiance(
             bottom_temperature, wavenumber_lower, wavenumber_upper
         )
+        if surface_albedo is not None:
+            thermal_bottom = thermal_bottom * (1.0 - surface_albedo)
         thermal_top = planck_band_radiance(
             top_temperature, wavenumber_lower, wavenumber_upper
         )
