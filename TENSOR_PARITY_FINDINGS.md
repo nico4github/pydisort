@@ -109,7 +109,7 @@ The native input and float64 output for that two-layer gate are stored in
 are 0.2 and 0.5, single-scattering albedos are 0.4 and 0.7, and requested
 depths cover both an interface and an interior point in the second layer. The
 fixture is present; the tensor implementation and CPU/H100 assertion remain
-pending.
+complete at 2e-8 absolute tolerance.
 
 The dedicated native `test_cdisort_user_ray.release` diagnostic reproduces
 this fixture directly without altering the immutable TP9 reference case. Its

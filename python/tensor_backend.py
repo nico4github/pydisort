@@ -736,6 +736,151 @@ def extract_tp9_user_intensity_one_layer_m0(
     return output
 
 
+@timed(name="tensor_backend.extract_tp9_user_intensity_m0")
+def extract_tp9_user_intensity_m0(
+    user_eigenvectors: torch.Tensor,
+    eigenvalues: torch.Tensor,
+    optics: TensorLayerOptics,
+    grid: TensorOutputGrid,
+    constants: torch.Tensor,
+    user_mu: torch.Tensor,
+    fisot: torch.Tensor,
+) -> torch.Tensor:
+    """C-DISORT source-free m=0 user rays, including all crossed layers."""
+    nstr = user_eigenvectors.shape[-1]
+    nn = nstr // 2
+    nlyr = optics.dtaucpr.shape[-1]
+    if constants.shape != (*user_eigenvectors.shape[:-3], nlyr * nstr):
+        raise ValueError("constants are incompatible with user eigenvectors")
+    constants = constants.reshape(*constants.shape[:-1], nlyr, nstr)
+    kk = torch.cat((-eigenvalues.flip(-1), eigenvalues), dim=-1)
+    starts = torch.cat(
+        (torch.zeros_like(optics.taucpr[..., :1]), optics.taucpr[..., :-1]),
+        dim=-1,
+    )
+    result = torch.zeros(
+        *grid.utaupr.shape,
+        user_mu.numel(),
+        dtype=grid.utaupr.dtype,
+        device=grid.utaupr.device,
+    )
+    for iu, mu in enumerate(user_mu):
+        gu = user_eigenvectors[..., :, iu, :] * constants
+        for lu in range(grid.utaupr.shape[-1]):
+            tau = grid.utaupr[..., lu]
+            target = grid.layru[..., lu] - 1
+            value = torch.zeros_like(tau)
+            for lc in range(nlyr):
+                begin, end = starts[..., lc], optics.taucpr[..., lc]
+                dtau = optics.dtaucpr[..., lc]
+                mode = kk[..., lc, :]
+                denom = 1.0 + mu * mode
+                if mu < 0:
+                    exp1 = torch.exp((tau - begin) / mu)
+                    exp2 = torch.exp((tau - end) / mu)
+                    full = -(
+                        gu[..., lc, :nn]
+                        * (
+                            torch.exp(mode[..., :nn] * dtau.unsqueeze(-1))
+                            * exp1.unsqueeze(-1)
+                            - exp2.unsqueeze(-1)
+                        )
+                        / denom[..., :nn]
+                    ).sum(-1) - (
+                        gu[..., lc, nn:]
+                        * (
+                            exp1.unsqueeze(-1)
+                            - torch.exp(-mode[..., nn:] * dtau.unsqueeze(-1))
+                            * exp2.unsqueeze(-1)
+                        )
+                        / denom[..., nn:]
+                    ).sum(
+                        -1
+                    )
+                    value += torch.where(
+                        lc < target, full, torch.zeros_like(full)
+                    )
+                    dtau1, dtau2 = tau - begin, tau - end
+                    exp1 = torch.exp(dtau1 / mu)
+                    partial = (
+                        gu[..., lc, :nn]
+                        * (
+                            torch.exp(-mode[..., :nn] * dtau2.unsqueeze(-1))
+                            - torch.exp(mode[..., :nn] * dtau.unsqueeze(-1))
+                            * exp1.unsqueeze(-1)
+                        )
+                        / denom[..., :nn]
+                    ).sum(-1) + (
+                        gu[..., lc, nn:]
+                        * (
+                            torch.exp(-mode[..., nn:] * dtau1.unsqueeze(-1))
+                            - exp1.unsqueeze(-1)
+                        )
+                        / denom[..., nn:]
+                    ).sum(
+                        -1
+                    )
+                    value += torch.where(
+                        (target == lc) & (dtau1 > 1e-6),
+                        partial,
+                        torch.zeros_like(partial),
+                    )
+                else:
+                    exp1 = torch.exp((tau - begin) / mu)
+                    exp2 = torch.exp((tau - end) / mu)
+                    full = (
+                        gu[..., lc, :nn]
+                        * (
+                            torch.exp(mode[..., :nn] * dtau.unsqueeze(-1))
+                            * exp1.unsqueeze(-1)
+                            - exp2.unsqueeze(-1)
+                        )
+                        / denom[..., :nn]
+                    ).sum(-1) + (
+                        gu[..., lc, nn:]
+                        * (
+                            exp1.unsqueeze(-1)
+                            - torch.exp(-mode[..., nn:] * dtau.unsqueeze(-1))
+                            * exp2.unsqueeze(-1)
+                        )
+                        / denom[..., nn:]
+                    ).sum(
+                        -1
+                    )
+                    value += torch.where(
+                        lc > target, full, torch.zeros_like(full)
+                    )
+                    dtau1, dtau2 = tau - begin, tau - end
+                    exp2 = torch.exp(dtau2 / mu)
+                    partial = (
+                        gu[..., lc, :nn]
+                        * (
+                            torch.exp(-mode[..., :nn] * dtau2.unsqueeze(-1))
+                            - exp2.unsqueeze(-1)
+                        )
+                        / denom[..., :nn]
+                    ).sum(-1) + (
+                        gu[..., lc, nn:]
+                        * (
+                            torch.exp(-mode[..., nn:] * dtau1.unsqueeze(-1))
+                            - torch.exp(-mode[..., nn:] * dtau.unsqueeze(-1))
+                            * exp2.unsqueeze(-1)
+                        )
+                        / denom[..., nn:]
+                    ).sum(
+                        -1
+                    )
+                    value += torch.where(
+                        (target == lc) & (dtau1 < dtau - 1e-6),
+                        partial,
+                        torch.zeros_like(partial),
+                    )
+            if mu < 0:
+                value += fisot * torch.exp(tau / mu)
+            result[..., lu, iu] = value
+    return result
+
+
 @timed(name="tensor_backend.extract_tp9_quadrature_intensity")
 def extract_tp9_quadrature_intensity(
     eigenvectors: torch.Tensor,

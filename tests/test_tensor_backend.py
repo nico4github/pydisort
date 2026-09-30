@@ -1475,3 +1475,64 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
         device=device,
     )
     assert torch.allclose(actual, expected, atol=1e-4, rtol=1e-4)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_two_layer_user_ray_matches_cdisort(device):
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        build_tp9_boundary_system,
+        extract_tp9_user_intensity_m0,
+        gaussian_quadrature,
+        interpolate_tp9_eigenvectors_m0,
+        prepare_atmosphere,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_reduced_eigenproblem,
+        solve_tp9_boundary_system,
+    )
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_user_ray_two_layer_reference.json"
+        ).read_text()
+    )
+    prop = torch.zeros((1, 1, 2, 6), dtype=torch.float64, device=device)
+    prop[..., 0] = torch.tensor([0.2, 0.5], dtype=torch.float64, device=device)
+    prop[..., 1] = torch.tensor([0.4, 0.7], dtype=torch.float64, device=device)
+    fisot = torch.full(
+        (1, 1), fixture["fisot"], dtype=torch.float64, device=device
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    grid = prepare_output_grid(
+        torch.tensor(fixture["user_tau"], dtype=torch.float64, device=device),
+        atmosphere,
+        optics,
+        deltam=False,
+    )
+    quadrature = gaussian_quadrature(4, device=device)
+    values, vectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(optics, quadrature, nstr=4)
+    )
+    constants = solve_tp9_boundary_system(
+        build_tp9_boundary_system(vectors, values, optics, fisot)
+    )
+    user_mu = torch.tensor(
+        fixture["user_mu"], dtype=torch.float64, device=device
+    )
+    actual = extract_tp9_user_intensity_m0(
+        interpolate_tp9_eigenvectors_m0(vectors, optics, quadrature, user_mu),
+        values,
+        optics,
+        grid,
+        constants,
+        user_mu,
+        fisot,
+    )
+    expected = torch.tensor(
+        fixture["radiance"], dtype=torch.float64, device=device
+    )
+    assert torch.allclose(actual[0, 0], expected, atol=2e-8, rtol=1e-8)
