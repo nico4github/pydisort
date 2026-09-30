@@ -895,14 +895,17 @@ def build_tp9_beam_source(
     ylm[0] = 1.0
     ylm0[..., 0] = 1.0
     ylm[1] = mu
-    ylm0[..., 1] = umu0
+    # C-DISORT evaluates the incident direction at -UMU0 before forming its
+    # beam particular solution.  Keep this separate from the positive
+    # quadrature-angle convention used for outgoing directions.
+    ylm0[..., 1] = -umu0
     for degree in range(2, nstr):
         ylm[degree] = (
             (2 * degree - 1) * mu * ylm[degree - 1]
             - (degree - 1) * ylm[degree - 2]
         ) / degree
         ylm0[..., degree] = (
-            (2 * degree - 1) * umu0 * ylm0[..., degree - 1]
+            (2 * degree - 1) * (-umu0) * ylm0[..., degree - 1]
             - (degree - 1) * ylm0[..., degree - 2]
         ) / degree
     cc = 0.5 * torch.einsum(
