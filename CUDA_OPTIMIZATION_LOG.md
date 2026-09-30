@@ -40,8 +40,9 @@ The TP9 benchmark keeps its atmospheric inputs and results device-resident while
 CUDA events time repeated `forward()` calls. The only bulk host-to-device
 transfer is the initial placement of seven tensors: `prop`, `umu0`, `phi0`,
 `fbeam`, `fisot`, `fluor`, and `albedo`. There is no device-to-host transfer in
-a steady-state `forward()`; one result tensor is copied only after timing for
-CPU/CUDA agreement or when the calling application consumes host output.
+a steady-state `forward()`; one result tensor is copied for each host consumer.
+The benchmark's extra validation downloads are separately identified and are
+not part of the application transfer contract.
 
 The CUDA dispatch still creates and frees five small host-derived arrays per
 TP9 forward: `wvnmlo`, `wvnmhi`, `utau`, `umu`, and `phi`. This is five H2D
