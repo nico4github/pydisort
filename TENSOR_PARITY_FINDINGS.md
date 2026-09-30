@@ -118,6 +118,13 @@ point are entirely `palint`; the lower-boundary term is zero. The tensor defect
 is consequently restricted to its transcription of the positive-direction
 partial-layer integral.
 
+The retained five-layer native fixture varies optical thickness,
+single-scattering albedo, and Henyey-Greenstein moments in every layer. Its
+CPU and CUDA tensor outputs agree with each other but differ from native
+radiance by about 1e-3. The stored phase moments match
+`scattering_moments` exactly, so this is the active anisotropic user-angle
+interpolation/ray-path diagnostic rather than a fixture issue.
+
 `0003-user-ray-trace.patch` retains an opt-in CPU diagnostic for the
 post-constant user-angle modes in `c_user_intensities`. Set
 `PYDISORT_TRACE_USER_RAY` only while investigating a user-ray mismatch; it
