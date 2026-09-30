@@ -117,6 +117,22 @@ point rounding. Bitwise identity is not required where a batched library uses a
 different but numerically equivalent operation order; any tolerance is stated
 per stage and justified from the observed C/Fortran rounding envelope.
 
+## Reconstruction progress
+
+The first replacement component is implemented in
+`pydisort.tensor_backend.prepare_atmosphere`. It vectorizes the exact
+property-to-state preparation from `disort_impl`: optical-depth and
+single-scattering-albedo extraction, normalized zeroth Legendre moment,
+zero-filling of absent moments, and upward layer reversal. It preserves
+float64 tensors and supports the full `(nwave, ncol)` batch shape. Its parity
+tests use exact tensor equality because this stage performs copies and fills,
+not reordered floating-point arithmetic. The function is instrumented as
+`tensor_backend.prepare_atmosphere` for `TimingCollector` summaries.
+
+The next replacement component is the batched layer setup/eigenproblem input;
+it must consume this structure-of-arrays state without rebuilding per-solve
+C-DISORT pointer graphs.
+
 ## What the C baseline provides
 
 The C code supports a smooth *verification* conversion: immutable fixtures,

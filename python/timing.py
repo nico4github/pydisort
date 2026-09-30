@@ -16,7 +16,7 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from functools import wraps
 from time import perf_counter
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 import torch
 
@@ -162,9 +162,23 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
         return result
 
 
+@overload
 def timed(
-    function: Callable[..., T] | None = None, *, name: str | None = None
-) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
+    function: Callable[..., T], *, name: str | None = None
+) -> Callable[..., T]:
+    ...
+
+
+@overload
+def timed(
+    function: None = None, *, name: str | None = None
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    ...
+
+
+def timed(
+    function: Callable[..., Any] | None = None, *, name: str | None = None
+) -> Any:
     """Time a function when called inside a :class:`TimingCollector` context.
 
     It supports both ``@timed`` and ``@timed(name="layer_setup")``.
