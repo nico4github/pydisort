@@ -111,6 +111,12 @@ depths cover both an interface and an interior point in the second layer. The
 fixture is present; the tensor implementation and CPU/H100 assertion remain
 pending.
 
+The native `test_cdisort_09.release 4 2 1 0` diagnostic now reproduces this
+fixture directly. Its user-ray trace confirms that the upward values at the
+interior second-layer point are entirely `palint`; the lower-boundary term is
+zero. The tensor defect is consequently restricted to its transcription of
+the positive-direction partial-layer integral.
+
 `0003-user-ray-trace.patch` retains an opt-in CPU diagnostic for the
 post-constant user-angle modes in `c_user_intensities`. Set
 `PYDISORT_TRACE_USER_RAY` only while investigating a user-ray mismatch; it

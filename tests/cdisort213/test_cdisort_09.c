@@ -68,6 +68,7 @@ int main(int argc, char **argv) {
 void run_disort_test09(int nstr, int nlyr, double ssalb) {
    int icas, lc, k;
   const int ncase = 1;
+  const int two_layer_user_ray = nstr == 4 && nlyr == 2;
   double gg;
   disort_state ds;
   disort_output out, good;
@@ -97,7 +98,7 @@ void run_disort_test09(int nstr, int nlyr, double ssalb) {
   ds.nlyr = nlyr;
   ds.nphase = ds.nstr;
   ds.nmom = ds.nstr;
-  ds.ntau = 5;
+  ds.ntau = two_layer_user_ray ? 4 : 5;
   ds.numu = 4;
   ds.nphi = 1;
 
@@ -121,22 +122,27 @@ void run_disort_test09(int nstr, int nlyr, double ssalb) {
 
         /* Set optical properties per layer */
         for (lc = 1; lc <= ds.nlyr; ++lc) {
-          DTAUC(lc) = ((double)lc / ds.nlyr) * 6;
-          SSALB(lc) = 0.6 + (double)lc * ssalb;
+          if (two_layer_user_ray) {
+            DTAUC(lc) = lc == 1 ? 0.2 : 0.5;
+            SSALB(lc) = lc == 1 ? 0.4 : 0.7;
+          } else {
+            DTAUC(lc) = ((double)lc / ds.nlyr) * 6;
+            SSALB(lc) = 0.6 + (double)lc * ssalb;
+          }
         }
 
         /* Tau grid" (fixed 5 points) */
         UTAU(1) = 0.;
-        UTAU(2) = 1.05;
-        UTAU(3) = 2.1;
-        UTAU(4) = 6.;
-        UTAU(5) = 21.;
+        UTAU(2) = two_layer_user_ray ? 0.2 : 1.05;
+        UTAU(3) = two_layer_user_ray ? 0.45 : 2.1;
+        UTAU(4) = two_layer_user_ray ? 0.7 : 6.;
+        if (!two_layer_user_ray) UTAU(5) = 21.;
 
         /* Cosine angles */
-        UMU(1) = -1.;
-        UMU(2) = -0.2;
-        UMU(3) = 0.2;
-        UMU(4) = 1.;
+        UMU(1) = two_layer_user_ray ? -0.5 : -1.;
+        UMU(2) = two_layer_user_ray ? -0.3 : -0.2;
+        UMU(3) = two_layer_user_ray ? 0.4 : 0.2;
+        UMU(4) = two_layer_user_ray ? 0.5 : 1.;
 
         /* Azimuthal angle */
         PHI(1) = 60.;
