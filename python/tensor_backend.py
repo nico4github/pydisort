@@ -533,22 +533,22 @@ def build_tp9_boundary_system(
         right = slice((layer + 1) * nstr, (layer + 2) * nstr)
         lower_gc = eigenvectors[..., layer, :, :]
         upper_gc = eigenvectors[..., layer + 1, :, :]
-        matrix[
-            ..., row : row + nstr, left.start : left.start + nn
-        ] = -lower_gc[..., :nn]
-        matrix[..., row : row + nstr, left.start + nn : left.stop] = -lower_gc[
+        matrix[..., row : row + nstr, left.start : left.start + nn] = lower_gc[
+            ..., :nn
+        ]
+        matrix[..., row : row + nstr, left.start + nn : left.stop] = lower_gc[
             ..., nn:
         ] * factors[..., layer, :].unsqueeze(-2)
         matrix[
             ..., row : row + nstr, right.start : right.start + nn
-        ] = upper_gc[..., :nn] * factors[..., layer + 1, :].flip(
+        ] = -upper_gc[..., :nn] * factors[..., layer + 1, :].flip(
             dims=(-1,)
         ).unsqueeze(
             -2
         )
         matrix[
             ..., row : row + nstr, right.start + nn : right.stop
-        ] = upper_gc[..., nn:]
+        ] = -upper_gc[..., nn:]
         if beam_source is not None and expbea is not None:
             rhs[..., row : row + nstr] += (
                 beam_source[..., layer + 1, :] - beam_source[..., layer, :]

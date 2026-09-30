@@ -1,62 +1,18 @@
 diff --git a/cdisort213/disort.h b/cdisort213/disort.h
-index f9252d9..80ce30e 100644
+index 80ce30e..455dba8 100644
 --- a/cdisort213/disort.h
 +++ b/cdisort213/disort.h
-@@ -834,6 +834,24 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
-      */
-     c_set_matrix(ds,bdr,cband,cmu,cwt,delm0,dtaucpr,gc,kk,lyrcut,&ncol,ncut,taucpr,wk);
- 
-+#ifndef __CUDA_ARCH__
-+    if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-+      fprintf(stderr, "PYDISORT_TRACE_EIGEN");
-+      for (lc = 1; lc <= ncut; lc++) {
-+        for (iq = 1; iq <= nn; iq++) fprintf(stderr, " %.17g", KK(iq,lc));
-+      }
-+      fprintf(stderr, "\nPYDISORT_TRACE_GC");
-+      for (lc = 1; lc <= ncut; lc++) {
-+        for (iq = 1; iq <= ds->nstr; iq++) {
-+          for (j = 1; j <= ds->nstr; j++) {
-+            fprintf(stderr, " %.17g", GC(iq,j,lc));
-+          }
-+        }
+@@ -849,6 +849,13 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
+         }
+       }
+       fprintf(stderr, "\n");
++      fprintf(stderr, "PYDISORT_TRACE_CBAND rows=%d cols=%d", 9 * nn - 2,
++              ncol);
++      for (int trace_index = 0; trace_index < (9 * nn - 2) * ncol;
++           trace_index++) {
++        fprintf(stderr, " %.17g", cband[trace_index]);
 +      }
 +      fprintf(stderr, "\n");
-+    }
-+#endif
-+
-     /*
-      * Solve for constants of integration in homogeneous solution (general boundary conditions)
-      */
-diff --git a/cdisort213/solve.h b/cdisort213/solve.h
-index ff1be5a..04f1b39 100644
---- a/cdisort213/solve.h
-+++ b/cdisort213/solve.h
-@@ -1542,6 +1542,13 @@ DISPATCH_MACRO inline void c_solve0(disort_state *ds,
-    * Find the L-U decomposition of the band matrix CBAND.  The CUDA path
-    * omits the condition-number estimate because it is only diagnostic.
-    */
-+#ifndef __CUDA_ARCH__
-+  if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-+    fprintf(stderr, "PYDISORT_TRACE_SOLVE0 rhs");
-+    for (iq = 1; iq <= ncol; iq++) fprintf(stderr, " %.17g", B(iq));
-+    fprintf(stderr, "\n");
-+  }
-+#endif
-   ncd   = 3*nn-1;
-   if (ds->fast_flux && ds->nstr == 8 && ncol % 8 == 0) {
-     int nblock = ncol / 8;
-@@ -1585,6 +1592,14 @@ DISPATCH_MACRO inline void c_solve0(disort_state *ds,
+     }
  #endif
-   }
  
-+#ifndef __CUDA_ARCH__
-+  if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-+    fprintf(stderr, "PYDISORT_TRACE_SOLVE0 solution");
-+    for (iq = 1; iq <= ncol; iq++) fprintf(stderr, " %.17g", B(iq));
-+    fprintf(stderr, "\n");
-+  }
-+#endif
-+
-   /*
-    * Zero CBAND (it may contain 'foreign' elements upon returning from
-    * LINPACK) before another azimuthal component reuses it.  Flux-only

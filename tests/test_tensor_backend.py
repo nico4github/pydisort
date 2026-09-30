@@ -251,8 +251,8 @@ def test_tp9_boundary_system_matches_explicit_c_set_matrix_equations():
             [
                 [
                     [0.5, 2.0, 0.0, 0.0],
-                    [-1.0, -1.0, 7.0 / 3.0, 11.0],
-                    [-3.0, -2.5, 13.0 / 3.0, 17.0],
+                    [1.0, 1.0, -7.0 / 3.0, -11.0],
+                    [3.0, 2.5, -13.0 / 3.0, -17.0],
                     [0.0, 0.0, 13.0, 17.0 / 3.0],
                 ]
             ]
@@ -822,10 +822,6 @@ def test_tensor_tp9c_diffuse_component_matches_cdisort_fixture(device):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Problem 9c beam-only source parity is the active reconstruction gap.",
-)
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_tensor_tp9c_beam_component_matches_cdisort_fixture(device):
     fluxes, fixture = _tp9c_source_component_flux(device, "beam_only")

@@ -7,9 +7,9 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Current state
 
-- The focused tensor suite has 40 passing tests and four strict expected
-  failures. The failures are the CPU and CUDA variants of the Problem 9c
-  beam-only and thermal-only source decomposition tests.
+- The focused tensor suite has 42 passing tests and two strict expected
+  failures: the CPU and CUDA variants of the Problem 9c thermal-only source
+  decomposition test.
 - The source inputs and C-DISORT outputs are stored in
   `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
 - The diffuse-only six-layer Problem 9c component matches native C-DISORT to
@@ -32,9 +32,10 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 - `376f017` added durable native C-DISORT source fixtures and strict expected
   failures for the unresolved components.
-- Diffuse-only flux is exact to numerical rounding for all five output depths.
-- The direct transmitted beam flux is exact. The remaining beam-only error is
-  in the diffuse beam particular solution, not direct attenuation.
+- Diffuse-only and beam-only fluxes are exact to float64 rounding for all five
+  output depths on CPU and CUDA.
+- The direct transmitted beam and diffuse beam particular solution are both
+  validated by required fixtures.
 
 ### Incident beam angle
 
@@ -62,21 +63,14 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Active divergence
 
-The active probe is Problem 9c with thermal sources disabled, diffuse top
-illumination disabled, and a black lower surface. Native C-DISORT and the
-tensor reconstruction currently give:
+The active probe is Problem 9c with diffuse and beam sources disabled and a
+black lower surface. The remaining CPU/CUDA strict expected failures are
+thermal-only output fluxes. The largest observed difference is about `6.04e-2`
+in diffuse downward flux at output optical depth 1.05. The top boundary
+downward flux already agrees to float64 rounding.
 
-| Output optical depth | C-DISORT upward | Tensor upward | C-DISORT diffuse downward | Tensor diffuse downward |
-| ---: | ---: | ---: | ---: | ---: |
-| 0.00 | 0.351301568 | 0.350606379 | 0.000000000 | 0.000000000 |
-| 1.05 | 0.100917382 | 0.100367431 | 0.463211326 | 0.455737311 |
-| 2.10 | 0.035832362 | 0.034779043 | 0.176581240 | 0.171175381 |
-| 6.00 | 0.002268712 | 0.002192343 | 0.011961739 | 0.011564688 |
-| 21.0 | ~0 | ~0 | 0.000055681 | 0.000053873 |
-
-The thermal-only expected failure shares the remaining lower-boundary/source
-composition gap. Do not relax the fixture tolerance or convert either test to
-a normal pass until the C-DISORT source equation is reproduced.
+Do not relax the thermal fixture tolerance or convert either test to a normal
+pass until the C-DISORT thermal source equation is reproduced.
 
 ## Rejected hypotheses
 
@@ -100,9 +94,10 @@ black-surface probe:
    layer-interface indexing independently of the beam source.
 2. If that matches, compare the solved integration constants and then the
    `c_fluxes` beam contribution at each output depth.
-3. Correct the first divergent term, promote the beam fixture from strict
-   expected-fail to required CPU/CUDA parity, then repeat for thermal-only.
-4. Only then add the full Problem 9c flux fixture.
+3. Trace C-DISORT `c_upisot` thermal `ZPLK0`/`ZPLK1` values and compare them
+   directly with the tensor thermal source before changing output integration.
+4. Correct the first divergent thermal term, promote the thermal fixture to
+   required CPU/CUDA parity, then add the full Problem 9c flux fixture.
 
 ## Apple MPS note
 
@@ -124,3 +119,11 @@ float64 parity gates pass. It is not a second solver rewrite.
   eigenvectors up to arbitrary column scaling, while C's `KK` ordering must be
   represented inside the boundary matrix rather than changing the public
   eigensystem contract.
+- A single C trace of the raw `c_set_matrix` band storage established that
+  tensor continuity rows had both homogeneous blocks reversed in sign. The
+  C RHS already used the correct source sign, so the error changed the solved
+  constants rather than merely rescaling an equation. Reversing those two
+  tensor matrix signs yields float64 beam-only TP9c parity on CPU and CUDA.
+- The trace now also captures `PYDISORT_TRACE_CBAND`, allowing the C band
+  storage to be decoded as a dense reference without further speculative
+  ordering changes.

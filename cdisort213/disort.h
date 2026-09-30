@@ -849,6 +849,13 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
         }
       }
       fprintf(stderr, "\n");
+      fprintf(stderr, "PYDISORT_TRACE_CBAND rows=%d cols=%d", 9 * nn - 2,
+              ncol);
+      for (int trace_index = 0; trace_index < (9 * nn - 2) * ncol;
+           trace_index++) {
+        fprintf(stderr, " %.17g", cband[trace_index]);
+      }
+      fprintf(stderr, "\n");
     }
 #endif
 
