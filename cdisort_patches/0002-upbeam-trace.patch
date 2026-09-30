@@ -1,59 +1,62 @@
 diff --git a/cdisort213/disort.h b/cdisort213/disort.h
-index decf782..f9252d9 100644
+index f9252d9..80ce30e 100644
 --- a/cdisort213/disort.h
 +++ b/cdisort213/disort.h
-@@ -348,6 +348,15 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
- 	      disort_output *out,
-         emission_func_t emi_func)
- {
+@@ -834,6 +834,24 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
+      */
+     c_set_matrix(ds,bdr,cband,cmu,cwt,delm0,dtaucpr,gc,kk,lyrcut,&ncol,ncut,taucpr,wk);
+ 
 +#ifndef __CUDA_ARCH__
-+  if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-+    fprintf(stderr,
-+            "PYDISORT_TRACE_ENTRY fbeam=%.17g umu0=%.17g nstr=%d "
-+            "nlyr=%d spher=%d planck=%d\n",
-+            ds->bc.fbeam, ds->bc.umu0, ds->nstr, ds->nlyr,
-+            ds->flag.spher, ds->flag.planck);
-+  }
++    if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
++      fprintf(stderr, "PYDISORT_TRACE_EIGEN");
++      for (lc = 1; lc <= ncut; lc++) {
++        for (iq = 1; iq <= nn; iq++) fprintf(stderr, " %.17g", KK(iq,lc));
++      }
++      fprintf(stderr, "\nPYDISORT_TRACE_GC");
++      for (lc = 1; lc <= ncut; lc++) {
++        for (iq = 1; iq <= ds->nstr; iq++) {
++          for (j = 1; j <= ds->nstr; j++) {
++            fprintf(stderr, " %.17g", GC(iq,j,lc));
++          }
++        }
++      }
++      fprintf(stderr, "\n");
++    }
 +#endif
-   int
-     self_tested = 1;  // cli: disable self-test by default
-   int
-diff --git a/cdisort213/upbeam.h b/cdisort213/upbeam.h
-index 50e9fc8..098ad06 100644
---- a/cdisort213/upbeam.h
-+++ b/cdisort213/upbeam.h
-@@ -657,6 +657,20 @@ DISPATCH_MACRO inline void c_upbeam(disort_state *ds,
-     }
-     ZJ(iq) = (2.-delm0)*ds->bc.fbeam*sum/(4.*M_PI);
-   }
-+#ifndef __CUDA_ARCH__
-+  /*
-+   * Opt-in parity trace for the tensor reconstruction.  It is deliberately
-+   * emitted before and after the solve so a caller can compare C-DISORT's
-+   * RHS and particular solution without guessing at the first divergence.
-+   */
-+  if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-+    fprintf(stderr, "PYDISORT_TRACE_UPBEAM layer=%d rhs", lc);
-+    for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", ZJ(iq));
-+    fprintf(stderr, " ylm0");
-+    for (iq = 0; iq < ds->nstr; iq++) fprintf(stderr, " %.17g", ylm0[iq]);
-+    fprintf(stderr, "\n");
-+  }
-+#endif
-   /*
-    * Find L-U (lower/upper triangular) decomposition of ARRAY and see if it is nearly singular
-    * (NOTE:  ARRAY is altered)
-@@ -683,6 +697,13 @@ DISPATCH_MACRO inline void c_upbeam(disort_state *ds,
-    * return solution(s) in ZJ
++
+     /*
+      * Solve for constants of integration in homogeneous solution (general boundary conditions)
+      */
+diff --git a/cdisort213/solve.h b/cdisort213/solve.h
+index ff1be5a..04f1b39 100644
+--- a/cdisort213/solve.h
++++ b/cdisort213/solve.h
+@@ -1542,6 +1542,13 @@ DISPATCH_MACRO inline void c_solve0(disort_state *ds,
+    * Find the L-U decomposition of the band matrix CBAND.  The CUDA path
+    * omits the condition-number estimate because it is only diagnostic.
     */
-   c_sgesl(array,ds->nstr,ds->nstr,ipvt,zj,0);
 +#ifndef __CUDA_ARCH__
-+  if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-+    fprintf(stderr, "PYDISORT_TRACE_UPBEAM layer=%d solution", lc);
-+    for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", ZJ(iq));
++  if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
++    fprintf(stderr, "PYDISORT_TRACE_SOLVE0 rhs");
++    for (iq = 1; iq <= ncol; iq++) fprintf(stderr, " %.17g", B(iq));
 +    fprintf(stderr, "\n");
 +  }
 +#endif
-   for (iq = 1; iq <= nn; iq++) {
-     ZZ(nn+iq,  lc) = ZJ(iq);
-     ZZ(nn-iq+1,lc) = ZJ(iq+nn);
+   ncd   = 3*nn-1;
+   if (ds->fast_flux && ds->nstr == 8 && ncol % 8 == 0) {
+     int nblock = ncol / 8;
+@@ -1585,6 +1592,14 @@ DISPATCH_MACRO inline void c_solve0(disort_state *ds,
+ #endif
+   }
+ 
++#ifndef __CUDA_ARCH__
++  if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
++    fprintf(stderr, "PYDISORT_TRACE_SOLVE0 solution");
++    for (iq = 1; iq <= ncol; iq++) fprintf(stderr, " %.17g", B(iq));
++    fprintf(stderr, "\n");
++  }
++#endif
++
+   /*
+    * Zero CBAND (it may contain 'foreign' elements upon returning from
+    * LINPACK) before another azimuthal component reuses it.  Flux-only

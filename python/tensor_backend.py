@@ -549,6 +549,10 @@ def build_tp9_boundary_system(
         matrix[
             ..., row : row + nstr, right.start + nn : right.stop
         ] = upper_gc[..., nn:]
+        if beam_source is not None and expbea is not None:
+            rhs[..., row : row + nstr] += (
+                beam_source[..., layer + 1, :] - beam_source[..., layer, :]
+            ) * expbea[..., layer].unsqueeze(-1)
 
     bottom_row = nrow - nn
     bottom = eigenvectors[..., -1, nn:, :]

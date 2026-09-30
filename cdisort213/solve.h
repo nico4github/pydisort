@@ -1542,6 +1542,13 @@ DISPATCH_MACRO inline void c_solve0(disort_state *ds,
    * Find the L-U decomposition of the band matrix CBAND.  The CUDA path
    * omits the condition-number estimate because it is only diagnostic.
    */
+#ifndef __CUDA_ARCH__
+  if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+    fprintf(stderr, "PYDISORT_TRACE_SOLVE0 rhs");
+    for (iq = 1; iq <= ncol; iq++) fprintf(stderr, " %.17g", B(iq));
+    fprintf(stderr, "\n");
+  }
+#endif
   ncd   = 3*nn-1;
   if (ds->fast_flux && ds->nstr == 8 && ncol % 8 == 0) {
     int nblock = ncol / 8;
@@ -1584,6 +1591,14 @@ DISPATCH_MACRO inline void c_solve0(disort_state *ds,
     c_sgbsl(cband,(9*(ds->nstr/2)-2),ncol,ncd,ncd,ipvt,b,0);
 #endif
   }
+
+#ifndef __CUDA_ARCH__
+  if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+    fprintf(stderr, "PYDISORT_TRACE_SOLVE0 solution");
+    for (iq = 1; iq <= ncol; iq++) fprintf(stderr, " %.17g", B(iq));
+    fprintf(stderr, "\n");
+  }
+#endif
 
   /*
    * Zero CBAND (it may contain 'foreign' elements upon returning from

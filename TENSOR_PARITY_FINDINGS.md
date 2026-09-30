@@ -110,3 +110,17 @@ The tensor layout is device-generic, but the parity path deliberately uses
 float64. PyTorch MPS cannot allocate float64 tensors, so Apple GPU support
 requires a separate float32 execution profile and tolerance suite after the
 float64 parity gates pass. It is not a second solver rewrite.
+
+### Boundary trace result
+
+- The `c_solve0` trace confirms that the tensor beam boundary RHS, including
+  every layer-interface term, matches C-DISORT to float64 rounding.
+- C-DISORT's solved integration constants then diverge from the tensor dense
+  boundary solve. The active defect is therefore the tensor representation of
+  `c_set_matrix` / its constant ordering, not beam source construction or RHS
+  assembly.
+- A direct eigenvalue reorder was rejected because it broke all established
+  diffuse, thermal, and CUDA parity gates. C `GC` columns agree with tensor
+  eigenvectors up to arbitrary column scaling, while C's `KK` ordering must be
+  represented inside the boundary matrix rather than changing the public
+  eigensystem contract.

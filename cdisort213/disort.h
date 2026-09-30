@@ -834,6 +834,24 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
      */
     c_set_matrix(ds,bdr,cband,cmu,cwt,delm0,dtaucpr,gc,kk,lyrcut,&ncol,ncut,taucpr,wk);
 
+#ifndef __CUDA_ARCH__
+    if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+      fprintf(stderr, "PYDISORT_TRACE_EIGEN");
+      for (lc = 1; lc <= ncut; lc++) {
+        for (iq = 1; iq <= nn; iq++) fprintf(stderr, " %.17g", KK(iq,lc));
+      }
+      fprintf(stderr, "\nPYDISORT_TRACE_GC");
+      for (lc = 1; lc <= ncut; lc++) {
+        for (iq = 1; iq <= ds->nstr; iq++) {
+          for (j = 1; j <= ds->nstr; j++) {
+            fprintf(stderr, " %.17g", GC(iq,j,lc));
+          }
+        }
+      }
+      fprintf(stderr, "\n");
+    }
+#endif
+
     /*
      * Solve for constants of integration in homogeneous solution (general boundary conditions)
      */
