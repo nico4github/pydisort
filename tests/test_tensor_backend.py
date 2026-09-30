@@ -141,3 +141,31 @@ def test_gaussian_quadrature_has_disort_symmetry_and_normalization():
         atol=1e-14,
         rtol=0,
     )
+
+
+def test_reduced_eigen_matrix_is_batched_and_finite():
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        gaussian_quadrature,
+        prepare_layer_optics,
+    )
+
+    prop = torch.ones((2, 3, 4, 4), dtype=torch.float64)
+    atmosphere = prepare_atmosphere(prop, nstr=2, nmom=2)
+    optics = prepare_layer_optics(atmosphere, nstr=2, deltam=False)
+    matrix = build_reduced_eigen_matrix(
+        optics, gaussian_quadrature(2, device="cpu"), nstr=2
+    )
+    assert matrix.shape == (2, 3, 4, 1, 1)
+    assert torch.isfinite(matrix).all()
+
+
+def test_reduced_eigensolve_is_batched_and_real():
+    from pydisort.tensor_backend import solve_reduced_eigenproblem
+
+    matrix = torch.tensor([[[[[4.0, 0.0], [0.0, 9.0]]]]], dtype=torch.float64)
+    values, vectors = solve_reduced_eigenproblem(matrix)
+    assert torch.equal(
+        values, torch.tensor([[[[2.0, 3.0]]]], dtype=torch.float64)
+    )
+    assert vectors.shape == matrix.shape

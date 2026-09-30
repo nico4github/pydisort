@@ -211,3 +211,45 @@ def gaussian_quadrature(
         cmu=torch.cat((positive, -positive)),
         cwt=torch.cat((positive_weights, positive_weights)),
     )
+
+
+@timed(name="tensor_backend.build_reduced_eigen_matrix")
+def build_reduced_eigen_matrix(
+    optics: TensorLayerOptics, quadrature: TensorQuadrature, *, nstr: int
+) -> torch.Tensor:
+    """Build TP9's batched mazim=0 reduced eigenproblem matrix (SS(12))."""
+    nn = nstr // 2
+    mu = quadrature.cmu
+    ylm = torch.empty((nstr, nstr), dtype=mu.dtype, device=mu.device)
+    ylm[0] = 1.0
+    ylm[1] = mu
+    for degree in range(2, nstr):
+        ylm[degree] = (
+            (2 * degree - 1) * mu * ylm[degree - 1]
+            - (degree - 1) * ylm[degree - 2]
+        ) / degree
+    cc = 0.5 * torch.einsum(
+        "...l,li,lj,j->...ij", optics.gl, ylm, ylm, quadrature.cwt
+    )
+    alpha = cc[..., :nn, :nn] / mu[:nn].view(1, 1, nn, 1)
+    beta = cc[..., :nn, nn:] / mu[:nn].view(1, 1, nn, 1)
+    eye = torch.eye(nn, dtype=mu.dtype, device=mu.device) / mu[:nn].view(nn, 1)
+    amb = alpha - beta - eye
+    apb = alpha + beta - eye
+    return apb @ amb
+
+
+@timed(name="tensor_backend.solve_reduced_eigenproblem")
+def solve_reduced_eigenproblem(
+    matrix: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Solve the batched real reduced eigenproblem used by the TP9 flux path."""
+    values, vectors = torch.linalg.eig(matrix)
+    scale = values.real.abs().amax(dim=-1, keepdim=True).clamp_min(1.0)
+    if torch.any(
+        values.imag.abs() > torch.finfo(matrix.dtype).eps * 128.0 * scale
+    ):
+        raise RuntimeError(
+            "reduced DISORT eigenproblem produced complex eigenvalues"
+        )
+    return values.real.abs().sqrt(), vectors.real
