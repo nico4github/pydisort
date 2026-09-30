@@ -666,6 +666,76 @@ def top_boundary_user_intensity(
     return result
 
 
+@timed(name="tensor_backend.extract_tp9_user_intensity_one_layer_m0")
+def extract_tp9_user_intensity_one_layer_m0(
+    user_eigenvectors: torch.Tensor,
+    eigenvalues: torch.Tensor,
+    optics: TensorLayerOptics,
+    grid: TensorOutputGrid,
+    constants: torch.Tensor,
+    user_mu: torch.Tensor,
+    fisot: torch.Tensor,
+) -> torch.Tensor:
+    """C-DISORT's homogeneous m=0 user-ray integral for one layer."""
+    nstr = user_eigenvectors.shape[-1]
+    nn = nstr // 2
+    if optics.dtaucpr.shape[-1] != 1:
+        raise ValueError("one-layer user-ray integrator requires one layer")
+    kk = torch.cat(
+        (-eigenvalues[..., 0, :].flip(-1), eigenvalues[..., 0, :]), dim=-1
+    )
+    gu = user_eigenvectors[..., 0, :, :] * constants[..., None, :]
+    tau = grid.utaupr
+    depth = optics.dtaucpr[..., 0, None]
+    output = torch.zeros(
+        *tau.shape, user_mu.numel(), dtype=tau.dtype, device=tau.device
+    )
+    for index, mu in enumerate(user_mu):
+        denominator = 1.0 + mu * kk
+        if mu < 0:
+            exp1 = torch.exp(tau / mu)
+            negative = (
+                torch.exp(
+                    -kk[..., :nn, None]
+                    * (tau.unsqueeze(-2) - depth.unsqueeze(-2))
+                )
+                - torch.exp(kk[..., :nn, None] * depth.unsqueeze(-2))
+                * exp1.unsqueeze(-2)
+            ) / denominator[..., :nn].unsqueeze(-1)
+            positive = (
+                torch.exp(-kk[..., nn:, None] * tau.unsqueeze(-2))
+                - exp1.unsqueeze(-2)
+            ) / denominator[..., nn:].unsqueeze(-1)
+            integral = (gu[..., index, :nn, None] * negative).sum(-2) + (
+                gu[..., index, nn:, None] * positive
+            ).sum(-2)
+            output[..., index] = (
+                torch.where(tau > 1e-6, integral, torch.zeros_like(integral))
+                + fisot[..., None] * exp1
+            )
+        else:
+            exp2 = torch.exp((tau - depth) / mu)
+            negative = (
+                torch.exp(
+                    -kk[..., :nn, None]
+                    * (tau.unsqueeze(-2) - depth.unsqueeze(-2))
+                )
+                - exp2.unsqueeze(-2)
+            ) / denominator[..., :nn].unsqueeze(-1)
+            positive = (
+                torch.exp(-kk[..., nn:, None] * tau.unsqueeze(-2))
+                - torch.exp(-kk[..., nn:, None] * depth.unsqueeze(-2))
+                * exp2.unsqueeze(-2)
+            ) / denominator[..., nn:].unsqueeze(-1)
+            integral = (gu[..., index, :nn, None] * negative).sum(-2) + (
+                gu[..., index, nn:, None] * positive
+            ).sum(-2)
+            output[..., index] = torch.where(
+                tau < depth - 1e-6, integral, torch.zeros_like(integral)
+            )
+    return output
+
+
 @timed(name="tensor_backend.extract_tp9_quadrature_intensity")
 def extract_tp9_quadrature_intensity(
     eigenvectors: torch.Tensor,

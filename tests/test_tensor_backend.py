@@ -1403,3 +1403,57 @@ def test_tensor_top_boundary_user_intensity(device):
         device=device,
     )
     assert torch.allclose(result, expected, atol=1e-14, rtol=1e-13)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_one_layer_user_ray_matches_cdisort(device):
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        build_tp9_boundary_system,
+        extract_tp9_user_intensity_one_layer_m0,
+        gaussian_quadrature,
+        interpolate_tp9_eigenvectors_m0,
+        prepare_atmosphere,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_reduced_eigenproblem,
+        solve_tp9_boundary_system,
+    )
+
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64, device=device)
+    prop[..., 0] = 0.7
+    prop[..., 1] = 0.4
+    fisot = torch.full(
+        (1, 1), 1.0 / torch.pi, dtype=torch.float64, device=device
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    grid = prepare_output_grid(
+        torch.tensor([0.0, 0.35, 0.7], dtype=torch.float64, device=device),
+        atmosphere,
+        optics,
+        deltam=False,
+    )
+    quadrature = gaussian_quadrature(4, device=device)
+    values, vectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(optics, quadrature, nstr=4)
+    )
+    constants = solve_tp9_boundary_system(
+        build_tp9_boundary_system(vectors, values, optics, fisot)
+    )
+    user_mu = torch.tensor([-0.5, 0.5], dtype=torch.float64, device=device)
+    actual = extract_tp9_user_intensity_one_layer_m0(
+        interpolate_tp9_eigenvectors_m0(vectors, optics, quadrature, user_mu),
+        values,
+        optics,
+        grid,
+        constants,
+        user_mu,
+        fisot,
+    )
+    expected = torch.tensor(
+        [[[[0.3183098861837907, 0.033126], [0.1823, 0.0138], [0.1034, 0.0]]]],
+        dtype=torch.float64,
+        device=device,
+    )
+    assert torch.allclose(actual, expected, atol=1e-4, rtol=1e-4)
