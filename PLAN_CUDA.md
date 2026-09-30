@@ -408,3 +408,16 @@ only after CPU/CUDA agreement and repeated 1,024 x 17 event timings improve.
 Nsight Compute metrics would refine the choice, but the tool is unavailable on
 the current H100 host; do not claim register or achieved-occupancy values until
 it is available.
+
+
+#### Tensor-backend replacement rule — 2026-09-30
+
+The first Python/PyTorch tensor backend is a parity reconstruction, not an
+immediate speed contest. Port the restricted TP9 flow stage by stage against
+C-DISORT and the Fortran fixture, retaining machine-precision results and an
+explicit batched data layout. Similar or moderately slower complete-flow timing
+is acceptable at this point. Do not reject a correct intermediate or complete
+flow because it has not yet improved throughput; profile and optimize only
+after the parallelizable flow is whole. Every later optimization retains the
+same numerical gates and reports complete-flow timing against the initial
+replacement baseline.

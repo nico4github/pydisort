@@ -58,40 +58,58 @@ use ordinary eager PyTorch tensor operations, so changing Python code requires
 no pydisort extension rebuild. It does not change the existing `backend="cuda"`
 contract until it passes the gates below.
 
+The replacement phase is **parity first, performance second**. A complete,
+validated tensor flow is retained even when its first end-to-end time is similar
+to, or moderately worse than, the C CUDA route. Reject it only for incorrect or
+non-finite results, an unsupported feature presented as supported, or an
+architecture that cannot express the required batch operations. Performance
+optimization begins only after the restricted flow is complete and measured as
+a whole; otherwise every slow intermediate step would trigger an unnecessary
+redesign.
+
 1. **Specify the first supported subset.** Freeze a TP9-derived,
    plane-parallel, float64 flux contract: streams, layer properties, direct
    beam, Lambertian surface, delta-M behavior, user optical depths and angles,
    and exactly which radiance-related requests remain unsupported. Add a
    capability guard and a Fortran v4 fixture before implementation.
-2. **Build an eager Python/PyTorch reference one stage at a time.** Start with
-   batched layer setup and the reduced eigenproblem across `[batch, layer]`.
-   Use explicit structure-of-arrays tensors rather than `disort_state` copies.
-   First measure the vectorized CPU path, then move the same tensors to CUDA.
-   Compare each intermediate and final flux against C-DISORT for tiny batches
-   before optimizing or compiling anything.
-3. **Test the hard boundary solve separately.** The global layer-coupling
-   system is the principal redesign risk. Prototype a batched block-banded
-   solve, initially through stable PyTorch linear algebra; only introduce a
-   custom CUDA kernel if profiling shows that library calls are inadequate.
-4. **Measure the complete restricted path.** Require repeated H100 timings for
-   TP9 1,024 x 17 against the current 16.50 s CUDA and 9.58 s CPU baselines,
-   with device-resident tensors. Keep only a material, repeatable gain after
-   CPU/CUDA and Fortran validation. Introduce `torch.compile` or a small custom
-   CUDA kernel only for a measured eager-PyTorch bottleneck.
-5. **Expand only after success.** Add thermal emission, pseudo-spherical
-   geometry, BRDFs, general source, Fourier/radiance output, and special
-   boundary conditions as separate capabilities. The C backend remains the
-   default reference and fallback throughout.
+2. **Port data and stages for parity, not speed.** Build eager Python/PyTorch
+   layer setup and the reduced eigenproblem across `[batch, layer]`, using
+   explicit structure-of-arrays tensors rather than `disort_state` copies.
+   Preserve the C calculation order where practical. Compare intermediates and
+   final fluxes against C-DISORT on tiny batches before moving on. A slower
+   stage is accepted while it makes the final batched flow more explicit.
+3. **Port the boundary solve separately.** The global layer-coupling system is
+   the principal redesign risk. Implement a batched block-banded formulation,
+   initially through stable PyTorch linear algebra. Validate it independently
+   before composing it with the eigen stage; do not optimize either stage yet.
+4. **Accept a complete restricted reference flow.** Run the full TP9 subset on
+   CPU and CUDA with device-resident tensors. Require machine-precision
+   numerical agreement with C-DISORT and the Fortran reference fixture. Record
+   repeated H100 timings against the current 16.50 s CUDA and 9.58 s CPU
+   baselines, but retain the correct flow when it is similar or moderately
+   slower. This is the replacement milestone, not a performance gate.
+5. **Optimize only after replacement parity.** Profile the complete tensor
+   flow, then introduce `torch.compile`, library-specific layouts, fusion, or a
+   small custom CUDA kernel for a measured bottleneck. Each optimization keeps
+   the same parity checks and reports before/after complete-flow timing.
+6. **Expand only after the restricted flow is stable.** Add thermal emission,
+   pseudo-spherical geometry, BRDFs, general source, Fourier/radiance output,
+   and special boundary conditions as separate capabilities. The C backend
+   remains the default reference and fallback throughout.
 
 ## Decision gates
 
-Proceed beyond design only if a small tensor prototype can reproduce the
-restricted C-DISORT stage in float64 and demonstrates batching across many
-solves. Proceed to a full restricted solver only if it improves the production
-H100 case by enough to beat the current C CUDA route repeatedly without
-regressing C/Fortran parity. If batched eigensystems or the boundary solve do
-not show useful throughput, stop: the C CPU backend is the better production
-route, and a full Python rewrite is not justified.
+Proceed beyond design when a small tensor prototype reproduces the restricted
+C-DISORT stage in float64 and exposes a batched representation across many
+solves. Proceed to the complete restricted solver when every stage passes the
+numerical gate, even if its initial timing is similar to or moderately worse
+than the current C CUDA route. Then profile and optimize the complete flow.
+
+For this project, “machine precision” means a documented float64 comparison
+against C-DISORT and the Fortran fixture with errors at the scale of floating
+point rounding. Bitwise identity is not required where a batched library uses a
+different but numerically equivalent operation order; any tolerance is stated
+per stage and justified from the observed C/Fortran rounding envelope.
 
 ## What the C baseline provides
 
