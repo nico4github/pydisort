@@ -90,6 +90,12 @@ to 48 streams and 299 tabulated phase moments through a 64-optical-depth cloud.
 Their native fixtures pass on CPU and CUDA at 1e-8; the observed maximum
 difference is below 3.2e-10.
 
+The tensor radiance path now has its first direct user-angle gate. It ports
+C-DISORT `c_interp_eigenvec`, the one-layer homogeneous m=0 ray integral, and
+the attenuated diffuse top boundary. The `mu=(-0.5, 0.5)` native C-DISORT
+fixture at optical depths 0, 0.35, and 0.7 passes on CPU and CUDA. Multilayer
+ray transport, source terms, and Fourier orders remain pending.
+
 ## Rejected hypotheses
 
 - **Delta-M mismatch:** running the tensor probe without delta-M left the

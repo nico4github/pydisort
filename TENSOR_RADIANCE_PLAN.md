@@ -11,11 +11,11 @@ before the next source or Fourier feature is added.
    `GU` after `c_interp_eigenvec`; the Makefile now copies the real extension
    artifact before installation. The trace confirmed the tensor `GC` matrix
    differs only by per-column eigenvector scaling.
-2. **Homogeneous user-angle ray path.** Port the complete plane-parallel,
-   m=0 homogeneous portion of `c_user_intensities`: full layers on the ray,
-   partial output layer, and diffuse top/bottom boundary terms. Start with a
-   one-layer diffuse fixture at `mu=(-0.5, 0.5)`, then a multilayer fixture.
-   No beam, thermal, or surface reflection is accepted in this increment.
+2. **Homogeneous user-angle ray path — in progress.** The one-layer,
+   plane-parallel m=0 C-DISORT ray integral and diffuse top-boundary term pass
+   CPU/CUDA parity at `mu=(-0.5, 0.5)` and three output depths. Next add full
+   layers on the ray and a partial target layer for a multilayer fixture. No
+   beam, thermal, or surface reflection is accepted in this increment.
 3. **User-angle particular sources.** Add beam, thermal, and Fourier-zero
    general-source interpolation one source at a time. Each adds a source-only
    native fixture before a combined-source fixture.
@@ -39,6 +39,7 @@ before the next source or Fourier feature is added.
 
 ## Current state
 
-Step 1 is complete in commit `2edbdde`. An exploratory local `GU` port showed
-that local eigenvector evaluation omits the ray integral; it is intentionally
-not a supported API and is discarded before step 2 proceeds.
+Step 1 is complete in commit `2edbdde`. The first accepted step-2 increment
+is commit `972d408`: exact one-layer homogeneous m=0 ray integration and the
+attenuated diffuse top boundary, tested against a native C-DISORT user-angle
+reference on CPU and CUDA. The remaining step-2 work is multilayer transport.
