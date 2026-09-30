@@ -7,8 +7,9 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Current state
 
-- The focused tensor suite has 58 passing tests, including required CPU and
-  CUDA parity for full Problem 9c, all six published Test Problem 1 flux
+- The focused tensor suite contains 66 test instances: 45 CPU passes, two
+  documented skips, and 19 CUDA gates exercised on the H100. They include
+  required CPU/CUDA parity for full Problem 9c, all six published Test Problem 1 flux
   configurations, all four Rayleigh Test Problem 2 cases, both high-order
   Henyey-Greenstein Test Problem 3 cases, and the two azimuth-independent
   Haze-L Test Problem 4 beam cases, and both 48-stream Cloud C.1 Test Problem 5 beam cases.
@@ -96,6 +97,13 @@ the attenuated diffuse top boundary. The `mu=(-0.5, 0.5)` native C-DISORT
 fixture at optical depths 0, 0.35, and 0.7 passes on CPU and CUDA. Multilayer
 ray transport, source terms, and Fourier orders remain pending.
 
+The one-layer gate deliberately covers both directions: the downward value
+combines the homogeneous integral with the attenuated diffuse top boundary,
+while the upward value has a black lower boundary. The next fixture extends
+only the homogeneous m=0 transport to two nonuniform layers. It will separate
+the complete-layer and partial-layer contributions before beam, thermal, or
+surface terms are introduced.
+
 ## Rejected hypotheses
 
 - **Delta-M mismatch:** running the tensor probe without delta-M left the
@@ -110,14 +118,15 @@ ray transport, source terms, and Fourier orders remain pending.
 
 ## Next investigation
 
-1. Extend the flux fixture set to the remaining supported reference cases,
-   preserving explicit CPU/CUDA parity and source decomposition where it helps
-   isolate a defect.
-2. Add tensor radiance/Fourier-output capability, including user-angle general
-   source arrays, before exposing those intensity-oriented inputs.
-3. Add Hapke surface coupling only after its fixed-parameter C-backend
+1. Complete the two-layer source-free m=0 user-ray fixture, preserving
+   explicit CPU/CUDA parity for complete and partial ray segments.
+2. Add user-angle beam, thermal, and general-source terms one at a time, with
+   a source-only C-DISORT fixture before any combined-source fixture.
+3. Generalize to Fourier orders and reconstruct azimuth-dependent radiance
+   against TP4c before exposing that public capability.
+4. Add Hapke surface coupling only after its fixed-parameter C-backend
    reference is selected; RPV, CAM, and AMB are explicitly deferred.
-4. Establish the representative 100-layer / 1000-channel tensor workload,
+5. Establish the representative 100-layer / 1000-channel tensor workload,
    then begin the end-to-end timing and CUDA optimization baseline.
 
 ## Apple MPS note

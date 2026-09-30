@@ -28,10 +28,11 @@ Apple Silicon support currently means native CPU wheels and CPU batching.
 
 ## Parity work
 
-Read `TENSOR_PARITY_FINDINGS.md` before continuing tensor reconstruction work
-and update it with accepted results, rejected hypotheses, measured gaps, and
-the next evidence-based investigation step in the same commit as the related
-parity change.
+Read `TENSOR_RADIANCE_PLAN.md` and `TENSOR_PARITY_FINDINGS.md` before
+continuing tensor reconstruction work. Update the plan with the active
+milestone and acceptance boundary, and update the findings with accepted
+results, rejected hypotheses, measured gaps, and the next evidence-based
+investigation step in the same commit as the related parity change.
 
 Before implementing a missing feature, inspect the relevant Fortran input
 flag/output convention in `../disort-pyf`, the cdisort 2.1.3 state and test
