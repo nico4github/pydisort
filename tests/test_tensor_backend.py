@@ -507,3 +507,28 @@ def test_tensor_beam_flux_matches_self_contained_cdisort_fixture(device):
         atol=fixture["atol"],
         rtol=fixture["rtol"],
     )
+
+
+def test_tp9_thermal_source_matches_nonscattering_c_upisot_solution():
+    from pydisort.tensor_backend import (
+        build_tp9_thermal_source,
+        gaussian_quadrature,
+        prepare_layer_optics,
+    )
+
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    xr0 = torch.tensor([[[2.0]]], dtype=torch.float64)
+    xr1 = torch.tensor([[[3.0]]], dtype=torch.float64)
+    z0, z1 = build_tp9_thermal_source(
+        optics, gaussian_quadrature(4, device="cpu"), xr0, xr1, nstr=4
+    )
+    mu = gaussian_quadrature(4, device="cpu").cmu
+    expected_z1 = torch.cat((torch.full((2,), 3.0), torch.full((2,), 3.0)))
+    expected_z0 = torch.cat(
+        ((2.0 - 3.0 * mu[:2]).flip(dims=(-1,)), 2.0 + 3.0 * mu[:2])
+    )
+    assert torch.equal(z1[0, 0, 0], expected_z1)
+    assert torch.allclose(z0[0, 0, 0], expected_z0, atol=1e-14, rtol=0)

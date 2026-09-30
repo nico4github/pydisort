@@ -706,3 +706,58 @@ def build_tp9_beam_source(
     return torch.cat(
         (solution[..., nn:].flip(dims=(-1,)), solution[..., :nn]), dim=-1
     )
+
+
+@timed(name="tensor_backend.build_tp9_thermal_source")
+def build_tp9_thermal_source(
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    xr0: torch.Tensor,
+    xr1: torch.Tensor,
+    *,
+    nstr: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build C-DISORT ``ZPLK0`` and ``ZPLK1`` thermal particular solutions.
+
+    ``xr0`` and ``xr1`` are the layer-wise linear Planck-source coefficients
+    used by ``c_upisot``. Boundary and output integration are added separately.
+    """
+    if xr0.shape != optics.dtaucpr.shape or xr1.shape != optics.dtaucpr.shape:
+        raise ValueError("xr0 and xr1 must match the optical layer grid")
+    if xr0.dtype != optics.dtaucpr.dtype or xr1.dtype != optics.dtaucpr.dtype:
+        raise ValueError("thermal coefficients must use the optics dtype")
+    if (
+        xr0.device != optics.dtaucpr.device
+        or xr1.device != optics.dtaucpr.device
+    ):
+        raise ValueError("thermal coefficients must share the optics device")
+
+    nn = nstr // 2
+    mu = quadrature.cmu
+    ylm = torch.empty((nstr, nstr), dtype=mu.dtype, device=mu.device)
+    ylm[0] = 1.0
+    ylm[1] = mu
+    for degree in range(2, nstr):
+        ylm[degree] = (
+            (2 * degree - 1) * mu * ylm[degree - 1]
+            - (degree - 1) * ylm[degree - 2]
+        ) / degree
+    cc = 0.5 * torch.einsum(
+        "...l,li,lj,j->...ij", optics.gl, ylm, ylm, quadrature.cwt
+    )
+    system = -cc
+    diagonal = torch.arange(nstr, device=mu.device)
+    system[..., diagonal, diagonal] += 1.0
+    source1 = (
+        ((1.0 - optics.oprim) * xr1).unsqueeze(-1).expand(*xr1.shape, nstr)
+    )
+    z1 = torch.linalg.solve(system, source1.unsqueeze(-1)).squeeze(-1)
+    source0 = (
+        ((1.0 - optics.oprim) * xr0).unsqueeze(-1).expand(*xr0.shape, nstr)
+    )
+    source0 = source0 + mu.view(1, 1, 1, nstr) * z1
+    z0 = torch.linalg.solve(system, source0.unsqueeze(-1)).squeeze(-1)
+    return (
+        torch.cat((z0[..., nn:].flip(dims=(-1,)), z0[..., :nn]), dim=-1),
+        torch.cat((z1[..., nn:].flip(dims=(-1,)), z1[..., :nn]), dim=-1),
+    )
