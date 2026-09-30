@@ -1441,7 +1441,9 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
     constants = solve_tp9_boundary_system(
         build_tp9_boundary_system(vectors, values, optics, fisot)
     )
-    user_mu = torch.tensor([-0.5, 0.5], dtype=torch.float64, device=device)
+    user_mu = torch.tensor(
+        [-0.5, -0.3, 0.4, 0.5], dtype=torch.float64, device=device
+    )
     actual = extract_tp9_user_intensity_one_layer_m0(
         interpolate_tp9_eigenvectors_m0(vectors, optics, quadrature, user_mu),
         values,
@@ -1452,7 +1454,23 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
         fisot,
     )
     expected = torch.tensor(
-        [[[[0.3183098861837907, 0.033126], [0.1823, 0.0138], [0.1034, 0.0]]]],
+        [
+            [
+                [
+                    0.3183098861837907,
+                    0.3183098861837907,
+                    0.03747797124418063,
+                    0.03314712755971079,
+                ],
+                [
+                    0.1823428160669597,
+                    0.1314565496137554,
+                    0.016071063969282897,
+                    0.013758364434119348,
+                ],
+                [0.10337447141158351, 0.0580759519444697, 0.0, 0.0],
+            ]
+        ],
         dtype=torch.float64,
         device=device,
     )
