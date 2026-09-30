@@ -7,9 +7,9 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Current state
 
-- The focused tensor suite has 44 passing tests, including required CPU and
-  CUDA source-decomposition parity for diffuse, beam, and thermal Problem 9c
-  components.
+- The focused tensor suite has 46 passing tests, including required CPU and
+  CUDA parity for full Problem 9c and its diffuse, beam, and thermal source
+  decompositions.
 - The source inputs and C-DISORT outputs are stored in
   `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
 - The diffuse-only six-layer Problem 9c component matches native C-DISORT to
@@ -63,10 +63,11 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Current validated scope
 
-Problem 9c source decomposition is now complete: diffuse-only, beam-only, and
-thermal-only runs each match their stored native C-DISORT reference at float64
-rounding on CPU and CUDA. The next gate is the combined full Problem 9c fixture,
-which will verify linear composition through the complete reconstructed flow.
+Problem 9c source decomposition and its full combined calculation are complete:
+diffuse-only, beam-only, thermal-only, and combined runs each match their stored
+native C-DISORT reference at float64 rounding on CPU and CUDA. The combined gate
+caught and fixed a lower-boundary beam assignment that overwrote thermal RHS
+terms; it now accumulates both source contributions as C-DISORT does.
 
 ## Rejected hypotheses
 
@@ -90,10 +91,10 @@ black-surface probe:
    layer-interface indexing independently of the beam source.
 2. If that matches, compare the solved integration constants and then the
    `c_fluxes` beam contribution at each output depth.
-3. Add a required full Problem 9c CPU/CUDA fixture that combines diffuse,
-   beam, thermal, and Lambertian boundary terms.
-4. Use that combined fixture as the next regression gate before extending the
-   tensor flow to additional reference cases.
+3. Extend the required CPU/CUDA fixture set to the next Fortran/C-DISORT
+   reference cases, preserving the source-decomposition pattern when needed.
+4. Keep full Problem 9c as the regression gate for diffuse, beam, thermal,
+   and Lambertian lower-boundary composition.
 
 ## Apple MPS note
 

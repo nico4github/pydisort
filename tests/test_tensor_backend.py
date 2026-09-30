@@ -748,9 +748,9 @@ def _tp9c_source_component_flux(
         ),
     }
     fisot = torch.zeros((1, 1), dtype=torch.float64, device=device)
-    if component == "diffuse_only":
+    if component in {"diffuse_only", "combined"}:
         fisot.fill_(fixture["fisot"])
-    elif component == "beam_only":
+    if component in {"beam_only", "combined"}:
         common.update(
             umu0=torch.full(
                 (1, 1), fixture["umu0"], dtype=torch.float64, device=device
@@ -759,7 +759,7 @@ def _tp9c_source_component_flux(
                 (1, 1), fixture["fbeam"], dtype=torch.float64, device=device
             ),
         )
-    elif component == "thermal_only":
+    if component in {"thermal_only", "combined"}:
         common.update(
             temperature=torch.tensor(
                 fixture["temperature"], dtype=torch.float64, device=device
@@ -795,7 +795,12 @@ def _tp9c_source_component_flux(
                 device=device,
             ),
         )
-    else:
+    if component not in {
+        "diffuse_only",
+        "beam_only",
+        "thermal_only",
+        "combined",
+    }:
         raise ValueError(f"unknown source component: {component}")
     return (
         solve_tp9_flux(
@@ -993,4 +998,16 @@ def test_solve_tp9_flux_accepts_temperature_and_wavenumber_inputs():
         torch.zeros((), dtype=torch.float64),
         atol=1e-14,
         rtol=0,
+    )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_tp9c_combined_sources_match_cdisort_fixture(device):
+    fluxes, fixture = _tp9c_source_component_flux(device, "combined")
+
+    assert torch.allclose(
+        fluxes.cpu(),
+        torch.tensor(fixture["combined_flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
     )

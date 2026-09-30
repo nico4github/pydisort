@@ -514,7 +514,7 @@ def build_tp9_boundary_system(
             raise ValueError("umu0 must have shape (nwave, ncol)")
         expbea = torch.exp(-optics.taucpr / umu0.unsqueeze(-1))
         rhs[..., :nn] -= beam_source[..., 0, :nn].flip(dims=(-1,))
-        rhs[..., -nn:] = -beam_source[..., -1, nn:] * expbea[
+        rhs[..., -nn:] += -beam_source[..., -1, nn:] * expbea[
             ..., -1
         ].unsqueeze(-1)
         if fbeam is not None:
