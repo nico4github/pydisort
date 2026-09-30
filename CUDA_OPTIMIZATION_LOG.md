@@ -33,3 +33,29 @@ Nsight Systems shows the C-DISORT element kernel dominates device time. Further
 work must keep the full-warp pmem contract and focus on a repeatable way to
 raise useful per-solve parallelism or reduce per-thread solver work; cache and
 chunk-count changes alone have not improved the production result.
+
+## Host/device transfer audit — 2026-09-30
+
+The TP9 benchmark keeps its atmospheric inputs and results device-resident while
+CUDA events time repeated `forward()` calls. The only bulk host-to-device
+transfer is the initial placement of seven tensors: `prop`, `umu0`, `phi0`,
+`fbeam`, `fisot`, `fluor`, and `albedo`. There is no device-to-host transfer in
+a steady-state `forward()`; one result tensor is copied only after timing for
+CPU/CUDA agreement or when the calling application consumes host output.
+
+The CUDA dispatch still creates and frees five small host-derived arrays per
+TP9 forward: `wvnmlo`, `wvnmhi`, `utau`, `umu`, and `phi`. This is five H2D
+copies, with no corresponding D2H copy. It is a real source-level transfer
+cost, but it is small relative to the solver kernel:
+
+| TP9 production case | Initial H2D (7 copies) | Per-forward internal H2D (5 copies) | Per-forward D2H | One output D2H after timing |
+| --- | ---: | ---: | ---: | ---: |
+| 1,024 wavelengths × 1 column | 27,885,584 B (26.59 MiB) | 16,464 B (16.08 KiB) | 0 B | 81,920 B (80 KiB) |
+| 1,024 wavelengths × 17 columns | 474,054,928 B (452.09 MiB) | 278,848 B (272.31 KiB) | 0 B | 1,392,640 B (1.33 MiB) |
+
+The earlier immutable-grid cache experiment targeted those five internal
+uploads. It removed less than 0.3 MiB per 17-column forward and did not change
+end-to-end timing against a 16.49 s kernel-dominated solve, so it remains
+rejected. The benchmark now records this transfer contract and measures
+`cuda_d2h_output_seconds` using the actual CUDA result, replacing the old
+misleading metric that copied device inputs back to the host.
