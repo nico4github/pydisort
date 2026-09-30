@@ -377,6 +377,8 @@ def build_tp9_boundary_system(
     umu0: torch.Tensor | None = None,
     thermal0: torch.Tensor | None = None,
     thermal1: torch.Tensor | None = None,
+    thermal_top: torch.Tensor | None = None,
+    thermal_bottom: torch.Tensor | None = None,
 ) -> TensorBoundarySystem:
     """Assemble TP9's plane-parallel, no-beam, black-surface system.
 
@@ -439,6 +441,30 @@ def build_tp9_boundary_system(
         rhs[..., -nn:] -= thermal0[..., -1, nn:] + thermal1[
             ..., -1, nn:
         ] * optics.taucpr[..., -1].unsqueeze(-1)
+    if (thermal_top is None) != (thermal_bottom is None):
+        raise ValueError(
+            "thermal top and bottom sources must be supplied together"
+        )
+    if thermal_top is not None and thermal_bottom is not None:
+        expected_shape = eigenvectors.shape[:2]
+        if (
+            thermal_top.shape != expected_shape
+            or thermal_bottom.shape != expected_shape
+        ):
+            raise ValueError(
+                "thermal boundary sources must have shape (nwave, ncol)"
+            )
+        if (
+            thermal_top.dtype != eigenvectors.dtype
+            or thermal_bottom.dtype != eigenvectors.dtype
+            or thermal_top.device != eigenvectors.device
+            or thermal_bottom.device != eigenvectors.device
+        ):
+            raise ValueError(
+                "thermal boundary sources must share eigenvectors"
+            )
+        rhs[..., :nn] += thermal_top.unsqueeze(-1)
+        rhs[..., -nn:] += thermal_bottom.unsqueeze(-1)
     if (beam_source is None) != (umu0 is None):
         raise ValueError("beam_source and umu0 must be supplied together")
     if beam_source is not None and umu0 is not None:
@@ -633,6 +659,9 @@ def solve_tp9_flux(
     temperature: torch.Tensor | None = None,
     wavenumber_lower: torch.Tensor | None = None,
     wavenumber_upper: torch.Tensor | None = None,
+    bottom_temperature: torch.Tensor | None = None,
+    top_temperature: torch.Tensor | None = None,
+    top_emissivity: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Run the connected pure-PyTorch TP9a flux subset end to end.
 
@@ -662,6 +691,15 @@ def solve_tp9_flux(
         raise ValueError(
             "thermal_xr0 and thermal_xr1 must be supplied together"
         )
+    if (bottom_temperature is None) != (top_temperature is None):
+        raise ValueError(
+            "bottom_temperature and top_temperature must be supplied together"
+        )
+    if top_emissivity is not None and top_temperature is None:
+        raise ValueError(
+            "top_emissivity requires thermal boundary temperatures"
+        )
+    thermal_boundary_requested = bottom_temperature is not None
     if temperature is not None:
         if thermal_xr0 is not None:
             raise ValueError(
@@ -674,8 +712,40 @@ def solve_tp9_flux(
         thermal_xr0, thermal_xr1 = prepare_thermal_coefficients(
             temperature, optics, wavenumber_lower, wavenumber_upper
         )
-    elif wavenumber_lower is not None or wavenumber_upper is not None:
+    elif (wavenumber_lower is None) != (wavenumber_upper is None):
+        raise ValueError("both lower and upper wavenumber bounds are required")
+    elif (wavenumber_lower is not None) and not thermal_boundary_requested:
         raise ValueError("wavenumber bounds require temperature inputs")
+    if thermal_boundary_requested:
+        assert bottom_temperature is not None
+        assert top_temperature is not None
+        if wavenumber_lower is None or wavenumber_upper is None:
+            raise ValueError(
+                "thermal boundary temperatures require wavenumber bounds"
+            )
+        expected_shape = prop.shape[:2]
+        if (
+            bottom_temperature.shape != expected_shape
+            or top_temperature.shape != expected_shape
+        ):
+            raise ValueError(
+                "thermal boundary temperatures must have shape (nwave, ncol)"
+            )
+        thermal_bottom = planck_band_radiance(
+            bottom_temperature, wavenumber_lower, wavenumber_upper
+        )
+        thermal_top = planck_band_radiance(
+            top_temperature, wavenumber_lower, wavenumber_upper
+        )
+        if top_emissivity is not None:
+            if top_emissivity.shape != expected_shape:
+                raise ValueError(
+                    "top_emissivity must have shape (nwave, ncol)"
+                )
+            thermal_top = thermal_top * top_emissivity
+    else:
+        thermal_top = None
+        thermal_bottom = None
     thermal0, thermal1 = (
         (None, None)
         if thermal_xr0 is None or thermal_xr1 is None
@@ -693,6 +763,8 @@ def solve_tp9_flux(
             umu0,
             thermal0,
             thermal1,
+            thermal_top,
+            thermal_bottom,
         )
     )
     return extract_tp9_fluxes(
@@ -866,8 +938,11 @@ def planck_band_radiance(
     temperature_safe = temperature.clamp_min(
         torch.finfo(temperature.dtype).tiny
     )
-    lower = wavenumber_lower.unsqueeze(-1)
-    upper = wavenumber_upper.unsqueeze(-1)
+    lower = wavenumber_lower
+    upper = wavenumber_upper
+    while lower.ndim < temperature.ndim:
+        lower = lower.unsqueeze(-1)
+        upper = upper.unsqueeze(-1)
     c2 = 1.438786
     sigma_over_pi = 5.67032e-8 / torch.pi
     concentration = 15.0 / torch.pi**4
