@@ -352,6 +352,7 @@ def test_absorption_only_flux_matches_the_discrete_ordinate_reference():
     )
 
 
+@pytest.mark.parametrize("fixture_name", ["tp9a", "tp9b"])
 @pytest.mark.parametrize(
     "device",
     [
@@ -364,8 +365,10 @@ def test_absorption_only_flux_matches_the_discrete_ordinate_reference():
         ),
     ],
 )
-def test_tp9a_flux_matches_self_contained_reference_fixture(device):
-    """The first complete scattering reference runs without C or Fortran."""
+def test_tp9_flux_matches_self_contained_reference_fixture(
+    fixture_name, device
+):
+    """Scattering references run without a C-DISORT or Fortran installation."""
     from pydisort.tensor_backend import (
         build_reduced_eigen_matrix,
         build_tp9_boundary_system,
@@ -381,7 +384,7 @@ def test_tp9a_flux_matches_self_contained_reference_fixture(device):
         (
             Path(__file__).parent
             / "fixtures"
-            / "tensor_tp9a_flux_reference.json"
+            / f"tensor_{fixture_name}_flux_reference.json"
         ).read_text()
     )
     nstr = fixture["nstr"]
@@ -392,8 +395,14 @@ def test_tp9a_flux_matches_self_contained_reference_fixture(device):
     )
     prop[..., 0] = dtauc.to(device)
     prop[..., 1] = ssalb.to(device)
+    if "moments" in fixture:
+        prop[..., 2:] = torch.tensor(
+            fixture["moments"], dtype=torch.float64, device=device
+        )
     atmosphere = prepare_atmosphere(prop, nstr=nstr, nmom=nstr)
-    optics = prepare_layer_optics(atmosphere, nstr=nstr, deltam=False)
+    optics = prepare_layer_optics(
+        atmosphere, nstr=nstr, deltam=fixture["deltam"]
+    )
     quadrature = gaussian_quadrature(nstr, device=device)
     values, vectors = solve_reduced_eigenproblem(
         build_reduced_eigen_matrix(optics, quadrature, nstr=nstr)
@@ -402,7 +411,7 @@ def test_tp9a_flux_matches_self_contained_reference_fixture(device):
         torch.tensor(fixture["user_tau"], dtype=torch.float64, device=device),
         atmosphere,
         optics,
-        deltam=False,
+        deltam=fixture["deltam"],
     )
     fisot = torch.full(
         (1, 1), fixture["fisot"], dtype=torch.float64, device=device
