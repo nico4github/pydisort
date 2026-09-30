@@ -7,9 +7,9 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Current state
 
-- The focused tensor suite has 42 passing tests and two strict expected
-  failures: the CPU and CUDA variants of the Problem 9c thermal-only source
-  decomposition test.
+- The focused tensor suite has 44 passing tests, including required CPU and
+  CUDA source-decomposition parity for diffuse, beam, and thermal Problem 9c
+  components.
 - The source inputs and C-DISORT outputs are stored in
   `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
 - The diffuse-only six-layer Problem 9c component matches native C-DISORT to
@@ -32,10 +32,10 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 - `376f017` added durable native C-DISORT source fixtures and strict expected
   failures for the unresolved components.
-- Diffuse-only and beam-only fluxes are exact to float64 rounding for all five
-  output depths on CPU and CUDA.
-- The direct transmitted beam and diffuse beam particular solution are both
-  validated by required fixtures.
+- Diffuse-only, beam-only, and thermal-only fluxes are exact to float64
+  rounding for all five output depths on CPU and CUDA.
+- The direct transmitted beam, diffuse beam particular solution, and thermal
+  particular solution are all validated by required fixtures.
 
 ### Incident beam angle
 
@@ -61,16 +61,12 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
   reconstructing output fluxes. The beam source and its linear solve are no
   longer candidates.
 
-## Active divergence
+## Current validated scope
 
-The active probe is Problem 9c with diffuse and beam sources disabled and a
-black lower surface. The remaining CPU/CUDA strict expected failures are
-thermal-only output fluxes. The largest observed difference is about `6.04e-2`
-in diffuse downward flux at output optical depth 1.05. The top boundary
-downward flux already agrees to float64 rounding.
-
-Do not relax the thermal fixture tolerance or convert either test to a normal
-pass until the C-DISORT thermal source equation is reproduced.
+Problem 9c source decomposition is now complete: diffuse-only, beam-only, and
+thermal-only runs each match their stored native C-DISORT reference at float64
+rounding on CPU and CUDA. The next gate is the combined full Problem 9c fixture,
+which will verify linear composition through the complete reconstructed flow.
 
 ## Rejected hypotheses
 
@@ -94,10 +90,10 @@ black-surface probe:
    layer-interface indexing independently of the beam source.
 2. If that matches, compare the solved integration constants and then the
    `c_fluxes` beam contribution at each output depth.
-3. Trace C-DISORT `c_upisot` thermal `ZPLK0`/`ZPLK1` values and compare them
-   directly with the tensor thermal source before changing output integration.
-4. Correct the first divergent thermal term, promote the thermal fixture to
-   required CPU/CUDA parity, then add the full Problem 9c flux fixture.
+3. Add a required full Problem 9c CPU/CUDA fixture that combines diffuse,
+   beam, thermal, and Lambertian boundary terms.
+4. Use that combined fixture as the next regression gate before extending the
+   tensor flow to additional reference cases.
 
 ## Apple MPS note
 
@@ -127,3 +123,8 @@ float64 parity gates pass. It is not a second solver rewrite.
 - The trace now also captures `PYDISORT_TRACE_CBAND`, allowing the C band
   storage to be decoded as a dense reference without further speculative
   ordering changes.
+- The thermal trace shows all six C `ZPLK0` and `ZPLK1` vectors match the
+  tensor source arrays to float64 rounding. Its `c_solve0` RHS then exposed
+  the missing five thermal continuity terms in the tensor system. Adding the
+  exact C expression restored RHS parity below `5e-15` and promoted thermal
+  TP9c CPU/CUDA fixtures to required passes.

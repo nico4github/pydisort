@@ -553,6 +553,13 @@ def build_tp9_boundary_system(
             rhs[..., row : row + nstr] += (
                 beam_source[..., layer + 1, :] - beam_source[..., layer, :]
             ) * expbea[..., layer].unsqueeze(-1)
+        if thermal0 is not None and thermal1 is not None:
+            rhs[..., row : row + nstr] += (
+                thermal0[..., layer + 1, :]
+                - thermal0[..., layer, :]
+                + (thermal1[..., layer + 1, :] - thermal1[..., layer, :])
+                * optics.taucpr[..., layer].unsqueeze(-1)
+            )
 
     bottom_row = nrow - nn
     bottom = eigenvectors[..., -1, nn:, :]

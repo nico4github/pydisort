@@ -812,6 +812,19 @@ DISPATCH_MACRO inline int c_disort(disort_state  *ds,
         }
         XR0(lc) = PKAG(lc-1)-XR1(lc)*TAUCPR(lc-1);
         c_upisot(ds,lc,array,cc,cmu,ipvt,nn,oprim,wk,xr,zee,plk);
+#ifndef __CUDA_ARCH__
+        if (mazim == 0 && getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
+          fprintf(stderr, "PYDISORT_TRACE_THERMAL layer=%d zplk0", lc);
+          for (iq = 1; iq <= ds->nstr; iq++) {
+            fprintf(stderr, " %.17g", ZPLK0(iq,lc));
+          }
+          fprintf(stderr, " zplk1");
+          for (iq = 1; iq <= ds->nstr; iq++) {
+            fprintf(stderr, " %.17g", ZPLK1(iq,lc));
+          }
+          fprintf(stderr, "\n");
+        }
+#endif
       }
 
       if (!ds->flag.onlyfl && ds->flag.usrang) {

@@ -834,10 +834,6 @@ def test_tensor_tp9c_beam_component_matches_cdisort_fixture(device):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Problem 9c thermal-only boundary parity is the active reconstruction gap.",
-)
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_tensor_tp9c_thermal_component_matches_cdisort_fixture(device):
     fluxes, fixture = _tp9c_source_component_flux(device, "thermal_only")
