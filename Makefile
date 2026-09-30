@@ -34,6 +34,7 @@ install:
 	test -f python/pydisort$(EXT_SUFFIX)
 	test -d $(PACKAGE_DIR)/lib
 	cp python/pydisort$(EXT_SUFFIX) $(PACKAGE_DIR)/pydisort$(EXT_SUFFIX)
+	cp python/*.py python/*.pyi $(PACKAGE_DIR)/
 	cp $(BUILD_DIR)/lib/libdisort_release.so $(PACKAGE_DIR)/lib/libdisort_release.so
 	cp $(BUILD_DIR)/lib/libdisort_cuda_release.so $(PACKAGE_DIR)/lib/libdisort_cuda_release.so
 	$(MAKE) verify
