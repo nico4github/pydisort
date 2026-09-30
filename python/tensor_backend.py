@@ -628,6 +628,8 @@ def solve_tp9_flux(
     deltam: bool = False,
     umu0: torch.Tensor | None = None,
     fbeam: torch.Tensor | None = None,
+    thermal_xr0: torch.Tensor | None = None,
+    thermal_xr1: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Run the connected pure-PyTorch TP9a flux subset end to end.
 
@@ -653,9 +655,27 @@ def solve_tp9_flux(
         if umu0 is None or fbeam is None
         else build_tp9_beam_source(optics, quadrature, umu0, fbeam, nstr=nstr)
     )
+    if (thermal_xr0 is None) != (thermal_xr1 is None):
+        raise ValueError(
+            "thermal_xr0 and thermal_xr1 must be supplied together"
+        )
+    thermal0, thermal1 = (
+        (None, None)
+        if thermal_xr0 is None or thermal_xr1 is None
+        else build_tp9_thermal_source(
+            optics, quadrature, thermal_xr0, thermal_xr1, nstr=nstr
+        )
+    )
     constants = solve_tp9_boundary_system(
         build_tp9_boundary_system(
-            eigenvectors, eigenvalues, optics, fisot, beam_source, umu0
+            eigenvectors,
+            eigenvalues,
+            optics,
+            fisot,
+            beam_source,
+            umu0,
+            thermal0,
+            thermal1,
         )
     )
     return extract_tp9_fluxes(
@@ -668,6 +688,8 @@ def solve_tp9_flux(
         beam_source,
         umu0,
         fbeam,
+        thermal0,
+        thermal1,
     )
 
 

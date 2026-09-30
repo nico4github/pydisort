@@ -572,3 +572,35 @@ def test_thermal_particular_solution_contributes_to_user_fluxes():
     )
     expected = torch.full((2, 2), 2.0 * torch.pi, dtype=torch.float64)
     assert torch.allclose(fluxes[0, 0], expected, atol=1e-14, rtol=0)
+
+
+def test_solve_tp9_flux_accepts_connected_thermal_coefficients():
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    fluxes = solve_tp9_flux(
+        prop,
+        torch.tensor([0.0, 1.0], dtype=torch.float64),
+        torch.zeros((1, 1), dtype=torch.float64),
+        nstr=4,
+        nmom=4,
+        thermal_xr0=torch.full((1, 1, 1), 2.0, dtype=torch.float64),
+        thermal_xr1=torch.zeros((1, 1, 1), dtype=torch.float64),
+    )
+    assert torch.allclose(
+        fluxes[0, 0, 0, 1],
+        torch.zeros((), dtype=torch.float64),
+        atol=1e-14,
+        rtol=0,
+    )
+    assert torch.allclose(
+        fluxes[0, 0, 1, 0],
+        torch.zeros((), dtype=torch.float64),
+        atol=1e-14,
+        rtol=0,
+    )
+    assert fluxes[0, 0, 0, 0] > 0
+    assert torch.allclose(
+        fluxes[0, 0, 0, 0], fluxes[0, 0, 1, 1], atol=1e-14, rtol=0
+    )
