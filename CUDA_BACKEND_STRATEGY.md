@@ -2,18 +2,19 @@
 
 ## Decision
 
-Do **not** replace C-DISORT with a literal pure-Python port. Retain the current
-C-DISORT backend as the CPU implementation, compatibility route, and numerical
-oracle. If CUDA performance remains a product requirement, develop a separate,
-restricted **batched tensor backend** whose Python layer orchestrates PyTorch
-operations and whose numerical work runs in CUDA kernels, cuBLAS/cuSOLVER, or a
-small native CUDA extension.
+Do not replace C-DISORT with a *literal scalar Python-loop translation*.
+Retain the current C-DISORT backend as a compatibility route and numerical
+oracle. Develop a separate, restricted **Python/PyTorch batched backend** as
+the first CUDA redesign experiment. Its Python code expresses the algorithm,
+while PyTorch dispatches optimized CPU BLAS/LAPACK or CUDA/cuBLAS/cuSOLVER
+kernels for tensor operations.
 
-This is not a choice between C and Python syntax. A Python `for`-loop
-translation of C-DISORT would be slower than the current C CPU backend and
-would give CUDA the same one-scalar-solve-per-lane structure. A PyTorch
-implementation is useful only after the algorithm is expressed as operations
-on batches of layers and independent wavelength/geometry solves.
+This is not a choice between Python and C execution speed. Python orchestration
+over large tensor operations can approach or exceed handwritten C because the
+hot loops still run in compiled numerical libraries. It also allows rapid
+iteration on algorithm and layout without rebuilding the pydisort extension.
+Only a line-by-line `for`-loop translation would remain interpreter-bound and
+preserve the current one-scalar-solve-per-lane GPU mapping.
 
 ## Evidence from the current backend
 
@@ -44,27 +45,30 @@ be redesigned before tensors can represent them efficiently.
 | Option | Performance outlook | Correctness and maintenance | Recommendation |
 | --- | --- | --- | --- |
 | Keep the scalar C-DISORT CUDA wrapper and tune launches/transfers | Low: the known cache and residency experiments showed no production gain. | Lowest implementation risk, but CPU remains faster. | Retain as supported compatibility path; stop micro-tuning. |
-| Literal pure-Python port of C-DISORT | Worse than C on CPU; unchanged scalar mapping if put on CUDA. | Very high parity and maintenance cost; duplicates the solver. | Reject. |
-| Tensorized PyTorch port of all DISORT features | Potentially high, but it is a new solver rather than a port. | High cost: broad feature matrix, numerical behavior, and two implementations. | Do not start as a full rewrite. |
-| Restricted batched tensor/CUDA backend | Best chance of a GPU win on large spectral/geometry batches. | Bounded risk if explicitly opt-in and validated against C/Fortran. | Recommended investigation. |
+| Literal scalar Python-loop port of C-DISORT | Worse than C on CPU; unchanged scalar mapping if put on CUDA. | Very high parity and maintenance cost; duplicates the solver. | Reject. |
+| Vectorized Python/PyTorch port of all DISORT features | Potentially high, but it is a new solver rather than a direct translation. | High cost: broad feature matrix, numerical behavior, and two implementations. | Do not start as a full rewrite. |
+| Restricted Python/PyTorch batched backend | Best chance of a GPU win on large spectral/geometry batches, without extension rebuilds during exploration. | Bounded risk if explicitly opt-in and validated against C/Fortran. | Recommended investigation. |
 
 ## Recommended staged design
 
-The target is an optional backend, initially limited to the physics required by
-the production TP9 family. It must be selected explicitly and fall back to the
-C backend for every unsupported feature. It does not change the existing
-`backend="cuda"` contract until it passes the gates below.
+The target is an optional Python/PyTorch backend, initially limited to the
+physics required by the production TP9 family. It must be selected explicitly
+and fall back to the C backend for every unsupported feature. Early experiments
+use ordinary eager PyTorch tensor operations, so changing Python code requires
+no pydisort extension rebuild. It does not change the existing `backend="cuda"`
+contract until it passes the gates below.
 
 1. **Specify the first supported subset.** Freeze a TP9-derived,
    plane-parallel, float64 flux contract: streams, layer properties, direct
    beam, Lambertian surface, delta-M behavior, user optical depths and angles,
    and exactly which radiance-related requests remain unsupported. Add a
    capability guard and a Fortran v4 fixture before implementation.
-2. **Build a tensor reference for one stage at a time.** Start with batched
-   layer setup and the reduced eigenproblem across `[batch, layer]`. Use
-   explicit structure-of-arrays tensors rather than `disort_state` copies.
+2. **Build an eager Python/PyTorch reference one stage at a time.** Start with
+   batched layer setup and the reduced eigenproblem across `[batch, layer]`.
+   Use explicit structure-of-arrays tensors rather than `disort_state` copies.
+   First measure the vectorized CPU path, then move the same tensors to CUDA.
    Compare each intermediate and final flux against C-DISORT for tiny batches
-   before using CUDA.
+   before optimizing or compiling anything.
 3. **Test the hard boundary solve separately.** The global layer-coupling
    system is the principal redesign risk. Prototype a batched block-banded
    solve, initially through stable PyTorch linear algebra; only introduce a
@@ -72,7 +76,8 @@ C backend for every unsupported feature. It does not change the existing
 4. **Measure the complete restricted path.** Require repeated H100 timings for
    TP9 1,024 x 17 against the current 16.50 s CUDA and 9.58 s CPU baselines,
    with device-resident tensors. Keep only a material, repeatable gain after
-   CPU/CUDA and Fortran validation.
+   CPU/CUDA and Fortran validation. Introduce `torch.compile` or a small custom
+   CUDA kernel only for a measured eager-PyTorch bottleneck.
 5. **Expand only after success.** Add thermal emission, pseudo-spherical
    geometry, BRDFs, general source, Fourier/radiance output, and special
    boundary conditions as separate capabilities. The C backend remains the
@@ -92,7 +97,7 @@ route, and a full Python rewrite is not justified.
 
 The C code supports a smooth *verification* conversion: immutable fixtures,
 intermediate values, branch behavior, and final fluxes can be compared stage by
-stage. It does not make the performance conversion smooth automatically. The
-new backend must deliberately change data layout from per-solve pointer graphs
-to batched tensors; that data-layout change is the source of its possible CUDA
-benefit and the main engineering work.
+stage. A Python/PyTorch implementation can be a practical execution backend
+once its hot work is tensorized. The main engineering work is deliberately
+changing data layout from per-solve pointer graphs to batched tensors; that
+change is the source of both rapid Python iteration and possible CUDA benefit.
