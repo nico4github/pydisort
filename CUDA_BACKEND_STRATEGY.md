@@ -183,3 +183,13 @@ downward fluxes at the configured user optical depths against C-DISORT and the
 Fortran v4 fixture immediately after constants and flux extraction are
 connected. Record the observed float64 tolerance in the test and benchmark
 report. End-to-end timing is not a prerequisite for this numerical gate.
+
+## Problem 9c source-decomposition gate
+
+The full Problem 9c flux case is decomposed into diffuse-only, beam-only, and
+thermal-only runs in `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
+The diffuse component is a required CPU/CUDA parity test. Beam-only and
+thermal-only components are strict expected-fail tests while their remaining
+combined-source boundary terms are reconstructed. A future unexpected pass is
+therefore visible in CI and must be promoted to an ordinary permanent parity
+test rather than silently discarded.

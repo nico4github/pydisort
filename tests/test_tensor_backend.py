@@ -706,6 +706,154 @@ def test_tensor_thermal_lambertian_flux_matches_reference_fixture(device):
     )
 
 
+def _tp9c_source_component_flux(
+    device: str, component: str
+) -> tuple[torch.Tensor, dict]:
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_tp9c_source_decomposition_reference.json"
+        ).read_text()
+    )
+    nstr = fixture["nstr"]
+    prop = torch.zeros(
+        (1, 1, len(fixture["dtauc"]), 2 + nstr),
+        dtype=torch.float64,
+        device=device,
+    )
+    prop[..., 0] = torch.tensor(
+        fixture["dtauc"], dtype=torch.float64, device=device
+    )
+    prop[..., 1] = torch.tensor(
+        fixture["ssalb"], dtype=torch.float64, device=device
+    )
+    asymmetry = torch.tensor(
+        fixture["asymmetry"], dtype=torch.float64, device=device
+    )
+    prop[0, 0, :, 2:] = torch.stack(
+        [asymmetry.pow(degree) for degree in range(1, nstr + 1)], dim=-1
+    )
+    common = {
+        "nstr": nstr,
+        "nmom": nstr,
+        "deltam": True,
+        "surface_albedo": torch.full(
+            (1, 1),
+            fixture["surface_albedo"],
+            dtype=torch.float64,
+            device=device,
+        ),
+    }
+    fisot = torch.zeros((1, 1), dtype=torch.float64, device=device)
+    if component == "diffuse_only":
+        fisot.fill_(fixture["fisot"])
+    elif component == "beam_only":
+        common.update(
+            umu0=torch.full(
+                (1, 1), fixture["umu0"], dtype=torch.float64, device=device
+            ),
+            fbeam=torch.full(
+                (1, 1), fixture["fbeam"], dtype=torch.float64, device=device
+            ),
+        )
+    elif component == "thermal_only":
+        common.update(
+            temperature=torch.tensor(
+                fixture["temperature"], dtype=torch.float64, device=device
+            ).reshape(1, 1, -1),
+            bottom_temperature=torch.full(
+                (1, 1),
+                fixture["bottom_temperature"],
+                dtype=torch.float64,
+                device=device,
+            ),
+            top_temperature=torch.full(
+                (1, 1),
+                fixture["top_temperature"],
+                dtype=torch.float64,
+                device=device,
+            ),
+            top_emissivity=torch.full(
+                (1, 1),
+                fixture["top_emissivity"],
+                dtype=torch.float64,
+                device=device,
+            ),
+            wavenumber_lower=torch.full(
+                (1, 1),
+                fixture["wavenumber_lower"],
+                dtype=torch.float64,
+                device=device,
+            ),
+            wavenumber_upper=torch.full(
+                (1, 1),
+                fixture["wavenumber_upper"],
+                dtype=torch.float64,
+                device=device,
+            ),
+        )
+    else:
+        raise ValueError(f"unknown source component: {component}")
+    return (
+        solve_tp9_flux(
+            prop,
+            torch.tensor(
+                fixture["user_tau"], dtype=torch.float64, device=device
+            ),
+            fisot,
+            **common,
+        )[0, 0],
+        fixture,
+    )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_tp9c_diffuse_component_matches_cdisort_fixture(device):
+    fluxes, fixture = _tp9c_source_component_flux(device, "diffuse_only")
+
+    assert torch.allclose(
+        fluxes.cpu(),
+        torch.tensor(fixture["diffuse_only_flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Problem 9c beam-only source parity is the active reconstruction gap.",
+)
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_tp9c_beam_component_matches_cdisort_fixture(device):
+    fluxes, fixture = _tp9c_source_component_flux(device, "beam_only")
+
+    assert torch.allclose(
+        fluxes.cpu(),
+        torch.tensor(fixture["beam_only_flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Problem 9c thermal-only boundary parity is the active reconstruction gap.",
+)
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_tp9c_thermal_component_matches_cdisort_fixture(device):
+    fluxes, fixture = _tp9c_source_component_flux(device, "thermal_only")
+
+    assert torch.allclose(
+        fluxes.cpu(),
+        torch.tensor(fixture["thermal_only_flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
+    )
+
+
 def test_tp9_thermal_source_matches_nonscattering_c_upisot_solution():
     from pydisort.tensor_backend import (
         build_tp9_thermal_source,
