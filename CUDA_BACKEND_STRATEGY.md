@@ -67,6 +67,12 @@ optimization begins only after the restricted flow is complete and measured as
 a whole; otherwise every slow intermediate step would trigger an unnecessary
 redesign.
 
+Instrument every tensor-backend stage with `@pydisort.timed` and run it inside
+`pydisort.TimingCollector`. The decorator is inactive outside that context. Its
+summary reports inclusive wall time and CUDA-event time per named function,
+synchronizing only when the summary is requested. Store that summary with each
+benchmark record before optimizing the completed flow.
+
 1. **Specify the first supported subset.** Freeze a TP9-derived,
    plane-parallel, float64 flux contract: streams, layer properties, direct
    beam, Lambertian surface, delta-M behavior, user optical depths and angles,
