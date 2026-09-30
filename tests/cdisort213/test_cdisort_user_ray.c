@@ -47,6 +47,7 @@ int main(void) {
 void run_disort_user_ray(void) {
   const int nstr = 4;
   const int five_layer = getenv("PYDISORT_USER_RAY_FIVE") != NULL;
+  const int beam = getenv("PYDISORT_USER_RAY_BEAM") != NULL;
   const int nlyr = five_layer ? 5 : 2;
   const double ssalb = 0.;
    int icas, lc, k;
@@ -84,8 +85,8 @@ void run_disort_user_ray(void) {
   ds.numu = 4;
   ds.nphi = 1;
 
-  ds.bc.fbeam = 0.;
-  ds.bc.fisot = 1. / M_PI;
+  ds.bc.fbeam = beam ? M_PI : 0.;
+  ds.bc.fisot = beam ? 0. : 1. / M_PI;
   ds.bc.phi0 = 0.0;
   ds.bc.umu0 = 0.5;
   ds.bc.fluor = 0.;
