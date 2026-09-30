@@ -510,6 +510,48 @@ def test_tensor_beam_flux_matches_self_contained_cdisort_fixture(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_lambertian_flux_matches_problem_6c_fixture(device):
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_lambertian_flux_reference.json"
+        ).read_text()
+    )
+    nstr = fixture["nstr"]
+    prop = torch.zeros((1, 1, 1, 2 + nstr), dtype=torch.float64, device=device)
+    prop[..., 0] = fixture["dtauc"][0]
+    prop[..., 1] = fixture["ssalb"][0]
+    fluxes = solve_tp9_flux(
+        prop,
+        torch.tensor(fixture["user_tau"], dtype=torch.float64, device=device),
+        torch.zeros((1, 1), dtype=torch.float64, device=device),
+        nstr=nstr,
+        nmom=nstr,
+        umu0=torch.full(
+            (1, 1), fixture["umu0"], dtype=torch.float64, device=device
+        ),
+        fbeam=torch.full(
+            (1, 1), fixture["fbeam"], dtype=torch.float64, device=device
+        ),
+        surface_albedo=torch.full(
+            (1, 1),
+            fixture["surface_albedo"],
+            dtype=torch.float64,
+            device=device,
+        ),
+    )
+    assert torch.allclose(
+        fluxes[0, 0].cpu(),
+        torch.tensor(fixture["flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
+    )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_tensor_thermal_flux_matches_self_contained_cdisort_fixture(device):
     from pydisort.tensor_backend import solve_tp9_flux
 

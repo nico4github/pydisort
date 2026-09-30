@@ -379,6 +379,9 @@ def build_tp9_boundary_system(
     thermal1: torch.Tensor | None = None,
     thermal_top: torch.Tensor | None = None,
     thermal_bottom: torch.Tensor | None = None,
+    surface_albedo: torch.Tensor | None = None,
+    quadrature: TensorQuadrature | None = None,
+    fbeam: torch.Tensor | None = None,
 ) -> TensorBoundarySystem:
     """Assemble TP9's plane-parallel, no-beam, black-surface system.
 
@@ -423,6 +426,25 @@ def build_tp9_boundary_system(
         (*batch, nrow), dtype=eigenvectors.dtype, device=eigenvectors.device
     )
     factors = torch.exp(-eigenvalues * optics.dtaucpr.unsqueeze(-1))
+
+    if surface_albedo is not None:
+        if surface_albedo.shape != eigenvectors.shape[:2]:
+            raise ValueError("surface_albedo must have shape (nwave, ncol)")
+        if (
+            surface_albedo.dtype != eigenvectors.dtype
+            or surface_albedo.device != eigenvectors.device
+        ):
+            raise ValueError(
+                "surface_albedo must share eigenvector dtype and device"
+            )
+        if quadrature is None:
+            raise ValueError("surface_albedo requires quadrature")
+        if quadrature.cmu.shape != (nstr,) or quadrature.cwt.shape != (nstr,):
+            raise ValueError("quadrature is incompatible with eigenvectors")
+        if quadrature.cmu.device != eigenvectors.device:
+            raise ValueError("quadrature must share eigenvector device")
+    else:
+        surface_albedo = torch.zeros_like(fisot)
 
     top = eigenvectors[..., 0, :nn, :].flip(dims=(-2,))
     matrix[..., :nn, :nn] = top[..., :nn] * factors[..., 0, :].flip(
@@ -477,6 +499,13 @@ def build_tp9_boundary_system(
         rhs[..., -nn:] = -beam_source[..., -1, nn:] * expbea[
             ..., -1
         ].unsqueeze(-1)
+        if fbeam is not None:
+            if fbeam.shape != eigenvectors.shape[:2]:
+                raise ValueError("fbeam must have shape (nwave, ncol)")
+            reflected_beam = (
+                surface_albedo * umu0 * fbeam / torch.pi * expbea[..., -1]
+            )
+            rhs[..., -nn:] += reflected_beam.unsqueeze(-1)
     else:
         expbea = None
 
@@ -505,6 +534,19 @@ def build_tp9_boundary_system(
 
     bottom_row = nrow - nn
     bottom = eigenvectors[..., -1, nn:, :]
+    if quadrature is not None:
+        weights = (quadrature.cwt[:nn] * quadrature.cmu[:nn]).view(
+            *((1,) * len(batch)), nn, 1
+        )
+        reflected = (
+            2.0
+            * surface_albedo.unsqueeze(-1)
+            * torch.sum(
+                eigenvectors[..., -1, :nn, :].flip(dims=(-2,)) * weights,
+                dim=-2,
+            )
+        )
+        bottom = bottom - reflected.unsqueeze(-2)
     matrix[..., bottom_row:, -nstr:-nn] = bottom[..., :nn]
     matrix[..., bottom_row:, -nn:] = bottom[..., nn:] * factors[
         ..., -1, :
@@ -662,6 +704,7 @@ def solve_tp9_flux(
     bottom_temperature: torch.Tensor | None = None,
     top_temperature: torch.Tensor | None = None,
     top_emissivity: torch.Tensor | None = None,
+    surface_albedo: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Run the connected pure-PyTorch TP9a flux subset end to end.
 
@@ -687,6 +730,14 @@ def solve_tp9_flux(
         if umu0 is None or fbeam is None
         else build_tp9_beam_source(optics, quadrature, umu0, fbeam, nstr=nstr)
     )
+    if surface_albedo is not None:
+        if surface_albedo.shape != prop.shape[:2]:
+            raise ValueError("surface_albedo must have shape (nwave, ncol)")
+        if (
+            surface_albedo.dtype != prop.dtype
+            or surface_albedo.device != prop.device
+        ):
+            raise ValueError("surface_albedo must share prop dtype and device")
     if (thermal_xr0 is None) != (thermal_xr1 is None):
         raise ValueError(
             "thermal_xr0 and thermal_xr1 must be supplied together"
@@ -765,6 +816,9 @@ def solve_tp9_flux(
             thermal1,
             thermal_top,
             thermal_bottom,
+            surface_albedo,
+            quadrature,
+            fbeam,
         )
     )
     return extract_tp9_fluxes(
