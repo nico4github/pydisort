@@ -51,10 +51,7 @@ void gpu_chunk_kernel(at::TensorIterator& iter, size_t work_size,
   }
 
   constexpr int kThreadsPerBlock = 32;
-  // Production TP9 batches exceed the two-warp cap and must run in several
-  // chunks. Four full warps preserve the pmem lane mapping while allowing an
-  // H100 to keep more independent scalar solves resident.
-  constexpr int kResidentWarpsPerSm = 4;
+  constexpr int kResidentWarpsPerSm = 2;
 
   // Limit resident one-warp scalar solves to preserve cache locality.
   int sm_count = 0;
