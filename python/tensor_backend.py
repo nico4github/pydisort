@@ -814,3 +814,90 @@ def build_tp9_thermal_source(
         torch.cat((z0[..., nn:].flip(dims=(-1,)), z0[..., :nn]), dim=-1),
         torch.cat((z1[..., nn:].flip(dims=(-1,)), z1[..., :nn]), dim=-1),
     )
+
+
+@timed(name="tensor_backend.planck_band_radiance")
+def planck_band_radiance(
+    temperature: torch.Tensor,
+    wavenumber_lower: torch.Tensor,
+    wavenumber_upper: torch.Tensor,
+) -> torch.Tensor:
+    """Integrate C-DISORT's spectral Planck radiance over a wavenumber band.
+
+    The calculation uses the same C-DISORT physical constants and a fixed
+    device-side trapezoidal quadrature.  It is a tensor reference stage; the
+    later thermal parity fixture fixes its required C/Fortran tolerance.
+    """
+    if temperature.dtype != torch.float64:
+        raise ValueError("temperature must use float64")
+    if (
+        wavenumber_lower.dtype != torch.float64
+        or wavenumber_upper.dtype != torch.float64
+    ):
+        raise ValueError("wavenumber bounds must use float64")
+    if (
+        temperature.device != wavenumber_lower.device
+        or temperature.device != wavenumber_upper.device
+    ):
+        raise ValueError(
+            "temperature and wavenumber bounds must share a device"
+        )
+    if torch.any(temperature < 0) or torch.any(wavenumber_lower < 0):
+        raise ValueError("temperature and wavenumbers must be nonnegative")
+    if torch.any(wavenumber_upper < wavenumber_lower):
+        raise ValueError("upper wavenumber must not be below lower wavenumber")
+    nodes = torch.linspace(
+        0.0, 1.0, 129, dtype=torch.float64, device=temperature.device
+    )
+    wavenumber = (
+        wavenumber_lower.unsqueeze(-1)
+        + (wavenumber_upper - wavenumber_lower).unsqueeze(-1) * nodes
+    )
+    temperature_safe = temperature.clamp_min(
+        torch.finfo(temperature.dtype).tiny
+    )
+    exponent = 1.438786 * wavenumber / temperature_safe.unsqueeze(-1)
+    spectral = 1.1911e-8 * wavenumber.pow(3) / torch.expm1(exponent)
+    weights = torch.ones_like(nodes)
+    weights[0] = 0.5
+    weights[-1] = 0.5
+    integral = (
+        (spectral * weights).sum(dim=-1)
+        * (wavenumber_upper - wavenumber_lower)
+        / (nodes.numel() - 1)
+    )
+    return torch.where(
+        temperature < 1.0e-4, torch.zeros_like(integral), integral
+    )
+
+
+@timed(name="tensor_backend.prepare_thermal_coefficients")
+def prepare_thermal_coefficients(
+    temperature: torch.Tensor,
+    optics: TensorLayerOptics,
+    wavenumber_lower: torch.Tensor,
+    wavenumber_upper: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Convert level temperatures into C-DISORT ``XR0`` and ``XR1`` tensors."""
+    if temperature.shape != (
+        *optics.dtaucpr.shape[:2],
+        optics.dtaucpr.shape[-1] + 1,
+    ):
+        raise ValueError(
+            "temperature must contain one value for each layer boundary"
+        )
+    planck = planck_band_radiance(
+        temperature, wavenumber_lower, wavenumber_upper
+    )
+    difference = planck[..., 1:] - planck[..., :-1]
+    xr1 = torch.where(
+        optics.dtaucpr > 1.0e-4,
+        difference / optics.dtaucpr,
+        torch.zeros_like(difference),
+    )
+    previous_taucpr = torch.cat(
+        (torch.zeros_like(optics.taucpr[..., :1]), optics.taucpr[..., :-1]),
+        dim=-1,
+    )
+    xr0 = planck[..., :-1] - xr1 * previous_taucpr
+    return xr0, xr1

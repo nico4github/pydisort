@@ -604,3 +604,23 @@ def test_solve_tp9_flux_accepts_connected_thermal_coefficients():
     assert torch.allclose(
         fluxes[0, 0, 0, 0], fluxes[0, 0, 1, 1], atol=1e-14, rtol=0
     )
+
+
+def test_thermal_coefficients_preserve_an_isothermal_planck_source():
+    from pydisort.tensor_backend import (
+        planck_band_radiance,
+        prepare_layer_optics,
+        prepare_thermal_coefficients,
+    )
+
+    prop = torch.zeros((1, 1, 2, 6), dtype=torch.float64)
+    prop[..., 0] = torch.tensor([1.0, 2.0], dtype=torch.float64)
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    temperature = torch.full((1, 1, 3), 600.0, dtype=torch.float64)
+    lower = torch.full((1, 1), 999.0, dtype=torch.float64)
+    upper = torch.full((1, 1), 1000.0, dtype=torch.float64)
+    xr0, xr1 = prepare_thermal_coefficients(temperature, optics, lower, upper)
+    expected = planck_band_radiance(temperature[..., :1], lower, upper)
+    assert torch.equal(xr1, torch.zeros_like(xr1))
+    assert torch.allclose(xr0, expected.expand_as(xr0), atol=1e-14, rtol=0)
