@@ -419,3 +419,24 @@ def test_tp9a_flux_matches_self_contained_reference_fixture(device):
         atol=fixture["atol"],
         rtol=fixture["rtol"],
     )
+
+
+def test_solve_tp9_flux_matches_connected_stage_pipeline():
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    prop = torch.zeros((2, 3, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    utau = torch.tensor([0.0, 1.0], dtype=torch.float64)
+    fisot = torch.full((2, 3), 1.0 / torch.pi, dtype=torch.float64)
+    fluxes = solve_tp9_flux(prop, utau, fisot, nstr=4, nmom=4)
+
+    assert fluxes.shape == (2, 3, 2, 2)
+    assert torch.allclose(
+        fluxes[..., 0], torch.zeros_like(fluxes[..., 0]), atol=1e-14, rtol=0
+    )
+    assert torch.allclose(
+        fluxes[..., 0, 1],
+        torch.ones((2, 3), dtype=torch.float64),
+        atol=1e-13,
+        rtol=0,
+    )

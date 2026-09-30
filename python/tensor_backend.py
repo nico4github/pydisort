@@ -163,7 +163,9 @@ def prepare_output_grid(
     if torch.any(utau < 0) or torch.any(utau > optics.tauc[..., -1:].max()):
         raise ValueError("utau must lie within the atmospheric optical depth")
     layru0 = torch.searchsorted(
-        optics.tauc, utau.expand(*optics.tauc.shape[:-1], -1), right=False
+        optics.tauc,
+        utau.expand(*optics.tauc.shape[:-1], -1).contiguous(),
+        right=False,
     )
     layru0 = layru0.clamp(max=optics.tauc.shape[-1] - 1)
     previous_tauc = torch.cat(
@@ -547,3 +549,38 @@ def extract_tp9_fluxes(
         )
     )
     return torch.stack((upward, downward), dim=-1)
+
+
+@timed(name="tensor_backend.solve_tp9_flux")
+def solve_tp9_flux(
+    prop: torch.Tensor,
+    utau: torch.Tensor,
+    fisot: torch.Tensor,
+    *,
+    nstr: int,
+    nmom: int,
+    deltam: bool = False,
+) -> torch.Tensor:
+    """Run the connected pure-PyTorch TP9a flux subset end to end.
+
+    Supported physics is plane-parallel azimuth-independent diffuse top
+    illumination, a black Lambertian lower boundary, and no thermal, beam, or
+    general source. All tensors remain on ``prop.device`` throughout the
+    calculation. The function is deliberately an experimental entry point;
+    backend selection remains unchanged until broader parity is complete.
+    """
+    if utau.device != prop.device or fisot.device != prop.device:
+        raise ValueError("prop, utau, and fisot must share a device")
+    atmosphere = prepare_atmosphere(prop, nstr=nstr, nmom=nmom)
+    optics = prepare_layer_optics(atmosphere, nstr=nstr, deltam=deltam)
+    grid = prepare_output_grid(utau, atmosphere, optics, deltam=deltam)
+    quadrature = gaussian_quadrature(nstr, device=prop.device)
+    eigenvalues, eigenvectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(optics, quadrature, nstr=nstr)
+    )
+    constants = solve_tp9_boundary_system(
+        build_tp9_boundary_system(eigenvectors, eigenvalues, optics, fisot)
+    )
+    return extract_tp9_fluxes(
+        eigenvectors, eigenvalues, optics, grid, quadrature, constants
+    )
