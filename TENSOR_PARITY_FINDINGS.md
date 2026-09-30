@@ -7,9 +7,9 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Current state
 
-- The focused tensor suite has 46 passing tests, including required CPU and
-  CUDA parity for full Problem 9c and its diffuse, beam, and thermal source
-  decompositions.
+- The focused tensor suite has 48 passing tests, including required CPU and
+  CUDA parity for full Problem 9c, its source decompositions, and all six
+  published Test Problem 1 flux configurations.
 - The source inputs and C-DISORT outputs are stored in
   `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
 - The diffuse-only six-layer Problem 9c component matches native C-DISORT to
@@ -68,6 +68,10 @@ diffuse-only, beam-only, thermal-only, and combined runs each match their stored
 native C-DISORT reference at float64 rounding on CPU and CUDA. The combined gate
 caught and fixed a lower-boundary beam assignment that overwrote thermal RHS
 terms; it now accumulates both source contributions as C-DISORT does.
+
+All six published Test Problem 1 flux configurations are now stored as native
+float64 fixtures and pass on CPU and CUDA. They cover thin/thick slabs, beam
+and diffuse illumination, and conservative and near-conservative scattering.
 
 ## Rejected hypotheses
 

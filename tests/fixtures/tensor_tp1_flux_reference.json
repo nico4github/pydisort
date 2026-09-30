@@ -1,0 +1,177 @@
+{
+  "case": "DISORT Test Problem 1 tensor flux parity",
+  "provenance": "Native float64 pydisort C-DISORT runs for the published Test Problem 1 configurations.",
+  "phase_function": "isotropic",
+  "atol": 1e-08,
+  "rtol": 1e-08,
+  "cases": [
+    {
+      "label": "Test Problem 1a: thin, strongly absorbing, beam",
+      "dtauc": [
+        0.03125
+      ],
+      "ssalb": [
+        0.2
+      ],
+      "user_tau": [
+        0.0,
+        0.03125
+      ],
+      "nstr": 16,
+      "umu0": 0.1,
+      "fbeam": 31.41592653589793,
+      "fisot": 0.0,
+      "surface_albedo": 0.0,
+      "flux": [
+        [
+          0.07994509749216346,
+          3.1415926535897927
+        ],
+        [
+          -2.986026311465315e-17,
+          2.3778490805213806
+        ]
+      ]
+    },
+    {
+      "label": "Test Problem 1b: thin, conservative scattering, beam",
+      "dtauc": [
+        0.03125
+      ],
+      "ssalb": [
+        1.0
+      ],
+      "user_tau": [
+        0.0,
+        0.03125
+      ],
+      "nstr": 16,
+      "umu0": 0.1,
+      "fbeam": 31.41592653589793,
+      "fisot": 0.0,
+      "surface_albedo": 0.0,
+      "flux": [
+        [
+          0.4229217782575614,
+          3.1415926535488383
+        ],
+        [
+          -2.1156868773427843e-10,
+          2.7186708753147544
+        ]
+      ]
+    },
+    {
+      "label": "Test Problem 1c: thin, near-conservative, isotropic source",
+      "dtauc": [
+        0.03125
+      ],
+      "ssalb": [
+        0.99
+      ],
+      "user_tau": [
+        0.0,
+        0.03125
+      ],
+      "nstr": 16,
+      "umu0": 0.1,
+      "fbeam": 0.0,
+      "fisot": 1.0,
+      "surface_albedo": 0.0,
+      "flux": [
+        [
+          0.09065563693858585,
+          3.1415926535897922
+        ],
+        [
+          -7.130594596230161e-16,
+          3.0489749490727087
+        ]
+      ]
+    },
+    {
+      "label": "Test Problem 1d: thick, strongly absorbing, beam",
+      "dtauc": [
+        32.0
+      ],
+      "ssalb": [
+        0.2
+      ],
+      "user_tau": [
+        0.0,
+        32.0
+      ],
+      "nstr": 16,
+      "umu0": 0.1,
+      "fbeam": 31.41592653589793,
+      "fisot": 0.0,
+      "surface_albedo": 0.0,
+      "flux": [
+        [
+          0.2596862820401069,
+          3.1415926535897927
+        ],
+        [
+          -5.858969243583751e-34,
+          3.3252062593041683e-16
+        ]
+      ]
+    },
+    {
+      "label": "Test Problem 1e: thick, conservative scattering, beam",
+      "dtauc": [
+        32.0
+      ],
+      "ssalb": [
+        1.0
+      ],
+      "user_tau": [
+        0.0,
+        32.0
+      ],
+      "nstr": 16,
+      "umu0": 0.1,
+      "fbeam": 31.41592653589793,
+      "fisot": 0.0,
+      "surface_albedo": 0.0,
+      "flux": [
+        [
+          3.0738972832383684,
+          3.141592653571136
+        ],
+        [
+          -4.156803759961919e-11,
+          0.06769537031596111
+        ]
+      ]
+    },
+    {
+      "label": "Test Problem 1f: thick, near-conservative, isotropic source",
+      "dtauc": [
+        32.0
+      ],
+      "ssalb": [
+        0.99
+      ],
+      "user_tau": [
+        0.0,
+        32.0
+      ],
+      "nstr": 16,
+      "umu0": 0.1,
+      "fbeam": 0.0,
+      "fisot": 1.0,
+      "surface_albedo": 0.0,
+      "flux": [
+        [
+          2.4961810162046705,
+          3.1415926535897922
+        ],
+        [
+          4.495462090585799e-19,
+          0.004600477040866732
+        ]
+      ]
+    }
+  ]
+}

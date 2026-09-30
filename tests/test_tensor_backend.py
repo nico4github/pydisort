@@ -1011,3 +1011,56 @@ def test_tensor_tp9c_combined_sources_match_cdisort_fixture(device):
         atol=fixture["atol"],
         rtol=fixture["rtol"],
     )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_tp1_flux_cases_match_cdisort_fixtures(device):
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_tp1_flux_reference.json"
+        ).read_text()
+    )
+    for case in fixture["cases"]:
+        nlyr = len(case["dtauc"])
+        nstr = case["nstr"]
+        prop = torch.zeros(
+            (1, 1, nlyr, 2 + nstr), dtype=torch.float64, device=device
+        )
+        prop[..., 0] = torch.tensor(
+            case["dtauc"], dtype=torch.float64, device=device
+        )
+        prop[..., 1] = torch.tensor(
+            case["ssalb"], dtype=torch.float64, device=device
+        )
+        fluxes = solve_tp9_flux(
+            prop,
+            torch.tensor(case["user_tau"], dtype=torch.float64, device=device),
+            torch.full(
+                (1, 1), case["fisot"], dtype=torch.float64, device=device
+            ),
+            nstr=nstr,
+            nmom=nstr,
+            deltam=True,
+            umu0=torch.full(
+                (1, 1), case["umu0"], dtype=torch.float64, device=device
+            ),
+            fbeam=torch.full(
+                (1, 1), case["fbeam"], dtype=torch.float64, device=device
+            ),
+            surface_albedo=torch.full(
+                (1, 1),
+                case["surface_albedo"],
+                dtype=torch.float64,
+                device=device,
+            ),
+        )
+        assert torch.allclose(
+            fluxes[0, 0].cpu(),
+            torch.tensor(case["flux"], dtype=torch.float64),
+            atol=fixture["atol"],
+            rtol=fixture["rtol"],
+        ), case["label"]
