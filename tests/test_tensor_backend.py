@@ -71,3 +71,28 @@ def test_prepare_atmosphere_rejects_incompatible_contract(
 ):
     with pytest.raises(ValueError, match=message):
         prepare_atmosphere(prop, nstr=nstr, nmom=nmom)
+
+
+def test_prepare_layer_optics_matches_delta_m_formulas():
+    prop = torch.tensor(
+        [[[[2.0, 0.5, 0.2, 0.4], [3.0, 0.25, 0.1, 0.8]]]], dtype=torch.float64
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=2, nmom=2)
+
+    from pydisort.tensor_backend import prepare_layer_optics
+
+    layer = prepare_layer_optics(atmosphere, nstr=2, deltam=True)
+    expected_f = torch.tensor([[[0.4, 0.8]]], dtype=torch.float64)
+    expected_oprim = (
+        prop[..., 1] * (1.0 - expected_f) / (1.0 - expected_f * prop[..., 1])
+    )
+    expected_dtaucpr = (1.0 - expected_f * prop[..., 1]) * prop[..., 0]
+    assert torch.equal(layer.flyr, expected_f)
+    assert torch.allclose(layer.oprim, expected_oprim, rtol=0.0, atol=0.0)
+    assert torch.allclose(layer.dtaucpr, expected_dtaucpr, rtol=0.0, atol=0.0)
+    assert torch.allclose(
+        layer.tauc,
+        torch.tensor([[[2.0, 5.0]]], dtype=torch.float64),
+        rtol=0.0,
+        atol=0.0,
+    )

@@ -72,3 +72,68 @@ def prepare_atmosphere(
         else torch.zeros_like(source[..., 0])
     )
     return TensorAtmosphere(dtauc=source[..., 0], ssalb=ssalb, pmom=pmom)
+
+
+@dataclass(frozen=True)
+class TensorLayerOptics:
+    """Delta-M-scaled layer quantities used by the eigen and boundary stages."""
+
+    oprim: torch.Tensor
+    dtaucpr: torch.Tensor
+    tauc: torch.Tensor
+    taucpr: torch.Tensor
+    flyr: torch.Tensor
+    gl: torch.Tensor
+
+
+@timed(name="tensor_backend.prepare_layer_optics")
+def prepare_layer_optics(
+    atmosphere: TensorAtmosphere, *, nstr: int, deltam: bool
+) -> TensorLayerOptics:
+    """Vectorize the delta-M layer portion of ``c_disort_set``.
+
+    This excludes cut-off and user-output-grid bookkeeping.  It exactly follows
+    the C formulas for the arrays consumed by the subsequent eigen and boundary
+    stages, including the unscaled cumulative optical depth used by delta-M.
+    """
+    if atmosphere.pmom.shape[-1] <= nstr:
+        raise ValueError("pmom must include the nstr-th Legendre moment")
+    if atmosphere.dtauc.shape != atmosphere.ssalb.shape:
+        raise ValueError("dtauc and ssalb must have the same shape")
+
+    tauc = torch.cumsum(atmosphere.dtauc, dim=-1)
+    if deltam:
+        flyr = atmosphere.pmom[..., nstr]
+        denominator = 1.0 - flyr * atmosphere.ssalb
+        oprim = atmosphere.ssalb * (1.0 - flyr) / denominator
+        dtaucpr = denominator * atmosphere.dtauc
+        taucpr = torch.cumsum(dtaucpr, dim=-1)
+        gl = (
+            torch.arange(
+                nstr,
+                dtype=atmosphere.dtauc.dtype,
+                device=atmosphere.dtauc.device,
+            )
+            .mul(2)
+            .add(1)
+            * oprim.unsqueeze(-1)
+            * (atmosphere.pmom[..., :nstr] - flyr.unsqueeze(-1))
+            / (1.0 - flyr).unsqueeze(-1)
+        )
+    else:
+        flyr = torch.zeros_like(atmosphere.dtauc)
+        oprim = atmosphere.ssalb
+        dtaucpr = atmosphere.dtauc
+        taucpr = tauc
+        gl = (
+            torch.arange(
+                nstr,
+                dtype=atmosphere.dtauc.dtype,
+                device=atmosphere.dtauc.device,
+            )
+            .mul(2)
+            .add(1)
+            * oprim.unsqueeze(-1)
+            * atmosphere.pmom[..., :nstr]
+        )
+    return TensorLayerOptics(oprim, dtaucpr, tauc, taucpr, flyr, gl)
