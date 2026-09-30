@@ -162,7 +162,7 @@ size; the remaining boundary and flux stages carry most of the work.
 | 9 | Layer-continuity factors | Complete |
 | 10 | Generic batched block-tridiagonal solver | Complete |
 | 11 | C-DISORT TP9 boundary block and RHS assembly | Complete |
-| 12 | Beam/source terms and constants of integration | Active: plane-parallel particular source assembled |
+| 12 | Beam/source terms and constants of integration | Direct plane-parallel beam complete; thermal/general source pending |
 | 13 | Flux extraction on the user output grid | Complete for no-beam TP9a |
 | 14 | Complete tensor flow C-DISORT/Fortran parity tests | Active: TP9a/TP9b CPU/CUDA fixtures |
 | 15 | CPU/H100 end-to-end timing, incremental log, and optimization baseline | Pending |
