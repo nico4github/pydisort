@@ -32,6 +32,7 @@ class TimingRecord:
     name: str
     wall_seconds: float
     cuda_seconds: float | None
+    depth: int
 
 
 @dataclass
@@ -41,6 +42,7 @@ class _PendingRecord:
     device: torch.device | None
     start: Any | None
     end: Any | None
+    depth: int
 
 
 def _cuda_device(value: object) -> torch.device | None:
@@ -89,6 +91,7 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
             raise ValueError("cuda_device must name a CUDA device")
         self._pending: list[_PendingRecord] = []
         self._token: Token[TimingCollector | None] | None = None
+        self._depth = 0
 
     def __enter__(self) -> TimingCollector:  # noqa: PYI034
         if self._token is not None:
@@ -106,6 +109,8 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
         self, name: str, function: Callable[..., T], *args: Any, **kwargs: Any
     ) -> T:
         """Run ``function`` and append its inclusive timing record."""
+        depth = self._depth
+        self._depth += 1
         device = _cuda_device((args, kwargs)) or self._default_cuda_device
         start_event = end_event = None
         if device is not None:
@@ -121,9 +126,10 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
             if end_event is not None:
                 with torch.cuda.device(device):
                     end_event.record()
+            self._depth -= 1
             self._pending.append(
                 _PendingRecord(
-                    name, wall_seconds, device, start_event, end_event
+                    name, wall_seconds, device, start_event, end_event, depth
                 )
             )
 
@@ -140,6 +146,7 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
             TimingRecord(
                 name=record.name,
                 wall_seconds=record.wall_seconds,
+                depth=record.depth,
                 cuda_seconds=(
                     record.start.elapsed_time(record.end) / 1.0e3
                     if record.start is not None and record.end is not None
@@ -182,7 +189,8 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
                     "wall_seconds | cuda_seconds\n"
                 )
             timestamp = datetime.now(UTC).isoformat()
-            for name, values in self.summary().items():
+            summary = self.summary()
+            for name, values in summary.items():
                 cuda_seconds = values["cuda_seconds"]
                 cuda_text = (
                     "-" if cuda_seconds is None else f"{cuda_seconds:.9f}"
@@ -192,6 +200,17 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
                     f"{values['calls']} | {values['wall_seconds']:.9f} | "
                     f"{cuda_text}\n"
                 )
+            root = [record for record in self.records() if record.depth == 0]
+            total_cuda = [
+                record.cuda_seconds
+                for record in root
+                if record.cuda_seconds is not None
+            ]
+            handle.write(
+                f"{timestamp} | {case} | {backend} | TOTAL | {len(root)} | "
+                f"{sum(record.wall_seconds for record in root):.9f} | "
+                f"{'-' if not total_cuda else f'{sum(total_cuda):.9f}'}\n"
+            )
 
 
 @overload

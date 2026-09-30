@@ -61,6 +61,7 @@ def test_collector_appends_plain_text_report(tmp_path):
     content = path.read_text()
     assert "timestamp_utc | case | backend" in content
     assert "| tp9 | cpu | inner | 1 |" in content
+    assert "| tp9 | cpu | TOTAL | 1 |" in content
 
 
 def test_collector_finds_cuda_tensors_in_dataclass():
