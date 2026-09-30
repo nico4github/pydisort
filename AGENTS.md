@@ -187,9 +187,10 @@ remains unresolved after that audit, add a narrowly scoped, opt-in CPU trace to
 the relevant C stage before making further speculative changes. Record the
 trace in `cdisort_patches/`, document it in `TENSOR_PARITY_FINDINGS.md`, and
 prepare all trace points before one rebuild. Compare the traced C intermediate
-values with the tensor stage, then remove or retain the diagnostic only when it
-has continuing regression value. Do not rebuild repeatedly for uninstrumented
-guesses.
+values with the tensor stage. Retain the opt-in diagnostic and its patch after
+the investigation: it is dormant outside its environment variable and avoids
+repeating a future trace edit/rebuild. Do not rebuild repeatedly for
+uninstrumented guesses.
 
 ## Local extension rebuild
 
