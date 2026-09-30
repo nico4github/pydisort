@@ -46,13 +46,14 @@ int main(void) {
 
 void run_disort_user_ray(void) {
   const int nstr = 4;
-  const int nlyr = 2;
+  const int five_layer = getenv("PYDISORT_USER_RAY_FIVE") != NULL;
+  const int nlyr = five_layer ? 5 : 2;
   const double ssalb = 0.;
    int icas, lc, k;
   const int ncase = 1;
   double gg;
-  disort_state ds;
-  disort_output out, good;
+  disort_state ds = {};
+  disort_output out = {}, good = {};
 
   /* Initialize flags */
   ds.accur = 0.;
@@ -71,15 +72,15 @@ void run_disort_user_ray(void) {
   ds.flag.spher = FALSE;
   ds.flag.general_source = FALSE;
   ds.flag.output_uum = FALSE;
-  ds.flag.intensity_correction = TRUE;
-  ds.flag.old_intensity_correction = TRUE;
+  ds.flag.intensity_correction = FALSE;
+  ds.flag.old_intensity_correction = FALSE;
 
   /* Apply user-specified geometry */
   ds.nstr = nstr;
   ds.nlyr = nlyr;
   ds.nphase = ds.nstr;
   ds.nmom = ds.nstr;
-  ds.ntau = 4;
+  ds.ntau = five_layer ? 6 : 4;
   ds.numu = 4;
   ds.nphi = 1;
 
@@ -103,8 +104,10 @@ void run_disort_user_ray(void) {
 
         /* Set optical properties per layer */
         for (lc = 1; lc <= ds.nlyr; ++lc) {
-          DTAUC(lc) = lc == 1 ? 0.2 : 0.5;
-          SSALB(lc) = lc == 1 ? 0.4 : 0.7;
+          const double dtau[] = {0.15, 0.4, 0.5, 0.7, 0.65};
+          const double ssalb[] = {0.2, 0.55, 0.75, 0.45, 0.85};
+          DTAUC(lc) = five_layer ? dtau[lc - 1] : (lc == 1 ? 0.2 : 0.5);
+          SSALB(lc) = five_layer ? ssalb[lc - 1] : (lc == 1 ? 0.4 : 0.7);
         }
 
         /* Tau grid" (fixed 5 points) */
@@ -112,6 +115,11 @@ void run_disort_user_ray(void) {
         UTAU(2) = 0.2;
         UTAU(3) = 0.45;
         UTAU(4) = 0.7;
+        if (five_layer) {
+          UTAU(4) = 1.05;
+          UTAU(5) = 1.8;
+          UTAU(6) = 2.4;
+        }
 
         /* Cosine angles */
         UMU(1) = -0.5;
@@ -124,7 +132,9 @@ void run_disort_user_ray(void) {
 
         /* Phase function moments */
         for (lc = 1; lc <= ds.nlyr; ++lc) {
-          c_getmom(ISOTROPIC, 0., ds.nmom, &PMOM(0, lc));
+          const double gg[] = {0., 0.25, 0.55, 0.1, 0.7};
+          c_getmom(five_layer ? HENYEY_GREENSTEIN : ISOTROPIC,
+                   five_layer ? gg[lc - 1] : 0., ds.nmom, &PMOM(0, lc));
         }
 
         ds.bc.albedo = 0.;

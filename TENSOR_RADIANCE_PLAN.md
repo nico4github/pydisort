@@ -41,10 +41,14 @@ before the next source or Fourier feature is added.
 
 ## Current state
 
-Step 1 is complete in commit `2edbdde`. The first accepted step-2 increment
-is commit `972d408`: exact one-layer homogeneous m=0 ray integration and the
-attenuated diffuse top boundary, tested against a native C-DISORT user-angle
-reference on CPU and CUDA. Commit `2611959` records this status and the next
-evidence gate. The self-contained two-layer C-DISORT fixture is now stored in
-`tests/fixtures/tensor_user_ray_two_layer_reference.json`; its tensor gate is
-the remaining step-2 work, followed by the source and Fourier stages above.
+Step 1 is complete in commit `2edbdde`. The accepted step-2 increments now
+cover exact one-layer and two-layer homogeneous m=0 ray integration with the
+attenuated diffuse top boundary, tested against native C-DISORT references on
+CPU and CUDA. The next step-2 evidence gate is a five-layer, nonuniform,
+anisotropic source-free fixture with both symmetric and asymmetric user angles.
+Its native baseline is emitted by the dedicated diagnostic driver, rather than
+a wrapper result. A retained native trace has located the current mismatch
+upstream of ray integration in the interpolated-eigenvector/solved-constant
+product. Compare `GC` and the boundary-system solution by layer, correct that
+mapping, and only then promote the five-layer fixture to a required CPU/CUDA
+pytest gate. Source and Fourier stages remain after this gate.
