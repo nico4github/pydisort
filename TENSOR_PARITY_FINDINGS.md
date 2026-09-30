@@ -104,6 +104,13 @@ only the homogeneous m=0 transport to two nonuniform layers. It will separate
 the complete-layer and partial-layer contributions before beam, thermal, or
 surface terms are introduced.
 
+The native input and float64 output for that two-layer gate are stored in
+`tests/fixtures/tensor_user_ray_two_layer_reference.json`: optical thicknesses
+are 0.2 and 0.5, single-scattering albedos are 0.4 and 0.7, and requested
+depths cover both an interface and an interior point in the second layer. The
+fixture is present; the tensor implementation and CPU/H100 assertion remain
+pending.
+
 ## Rejected hypotheses
 
 - **Delta-M mismatch:** running the tensor probe without delta-M left the

@@ -45,5 +45,6 @@ Step 1 is complete in commit `2edbdde`. The first accepted step-2 increment
 is commit `972d408`: exact one-layer homogeneous m=0 ray integration and the
 attenuated diffuse top boundary, tested against a native C-DISORT user-angle
 reference on CPU and CUDA. Commit `2611959` records this status and the next
-evidence gate. The remaining step-2 work is multilayer transport, then the
-source and Fourier stages above.
+evidence gate. The self-contained two-layer C-DISORT fixture is now stored in
+`tests/fixtures/tensor_user_ray_two_layer_reference.json`; its tensor gate is
+the remaining step-2 work, followed by the source and Fourier stages above.
