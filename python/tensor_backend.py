@@ -274,7 +274,14 @@ def solve_reduced_eigenproblem(
     negative = torch.cat(
         (negative_gminus.flip(dims=(-2,)), negative_gplus), dim=-2
     ).flip(dims=(-1,))
-    return eigenvalues, torch.cat((negative, positive), dim=-1)
+    full = torch.cat((negative, positive), dim=-1)
+    # Eigenvectors are defined only up to independent column scaling. Scale
+    # each reconstructed full-stream mode before boundary assembly so the
+    # integration system retains C-DISORT's numerically stable normalization.
+    full = full / full.abs().amax(dim=-2, keepdim=True).clamp_min(
+        torch.finfo(full.dtype).tiny
+    )
+    return eigenvalues, full
 
 
 @timed(name="tensor_backend.build_layer_continuity_blocks")
@@ -410,7 +417,9 @@ def build_tp9_boundary_system(
     factors = torch.exp(-eigenvalues * optics.dtaucpr.unsqueeze(-1))
 
     top = eigenvectors[..., 0, :nn, :].flip(dims=(-2,))
-    matrix[..., :nn, :nn] = top[..., :nn] * factors[..., 0, :].unsqueeze(-2)
+    matrix[..., :nn, :nn] = top[..., :nn] * factors[..., 0, :].flip(
+        dims=(-1,)
+    ).unsqueeze(-2)
     matrix[..., :nn, nn:nstr] = top[..., nn:]
     rhs[..., :nn] = fisot.unsqueeze(-1)
 
@@ -422,27 +431,27 @@ def build_tp9_boundary_system(
         upper_gc = eigenvectors[..., layer + 1, :, :]
         matrix[
             ..., row : row + nstr, left.start : left.start + nn
-        ] = -lower_gc[..., :nn] * factors[..., layer, :].unsqueeze(-2)
+        ] = -lower_gc[..., :nn]
         matrix[..., row : row + nstr, left.start + nn : left.stop] = -lower_gc[
             ..., nn:
-        ]
+        ] * factors[..., layer, :].unsqueeze(-2)
         matrix[
             ..., row : row + nstr, right.start : right.start + nn
-        ] = upper_gc[..., :nn]
-        matrix[
-            ..., row : row + nstr, right.start + nn : right.stop
-        ] = upper_gc[..., nn:] * factors[..., layer + 1, :].flip(
+        ] = upper_gc[..., :nn] * factors[..., layer + 1, :].flip(
             dims=(-1,)
         ).unsqueeze(
             -2
         )
+        matrix[
+            ..., row : row + nstr, right.start + nn : right.stop
+        ] = upper_gc[..., nn:]
 
     bottom_row = nrow - nn
     bottom = eigenvectors[..., -1, nn:, :]
     matrix[..., bottom_row:, -nstr:-nn] = bottom[..., :nn]
     matrix[..., bottom_row:, -nn:] = bottom[..., nn:] * factors[
         ..., -1, :
-    ].flip(dims=(-1,)).unsqueeze(-2)
+    ].unsqueeze(-2)
     return TensorBoundarySystem(matrix=matrix, rhs=rhs)
 
 

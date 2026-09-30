@@ -1,5 +1,6 @@
 """Parity tests for the first vectorized C-DISORT state-preparation stage."""
 
+import json
 import sys
 import types
 from pathlib import Path
@@ -250,8 +251,8 @@ def test_tp9_boundary_system_matches_explicit_c_set_matrix_equations():
             [
                 [
                     [0.5, 2.0, 0.0, 0.0],
-                    [-0.5, -2.0, 7.0, 11.0 / 3.0],
-                    [-1.5, -5.0, 13.0, 17.0 / 3.0],
+                    [-1.0, -1.0, 7.0 / 3.0, 11.0],
+                    [-3.0, -2.5, 13.0 / 3.0, 17.0],
                     [0.0, 0.0, 13.0, 17.0 / 3.0],
                 ]
             ]
@@ -348,4 +349,57 @@ def test_absorption_only_flux_matches_the_discrete_ordinate_reference():
         torch.tensor(0.22380103757909353, dtype=torch.float64),
         atol=1e-10,
         rtol=0,
+    )
+
+
+def test_tp9a_flux_matches_self_contained_reference_fixture():
+    """The first complete scattering reference runs without C or Fortran."""
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        build_tp9_boundary_system,
+        extract_tp9_fluxes,
+        gaussian_quadrature,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_reduced_eigenproblem,
+        solve_tp9_boundary_system,
+    )
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_tp9a_flux_reference.json"
+        ).read_text()
+    )
+    nstr = fixture["nstr"]
+    dtauc = torch.tensor(fixture["dtauc"], dtype=torch.float64)
+    ssalb = torch.tensor(fixture["ssalb"], dtype=torch.float64)
+    prop = torch.zeros((1, 1, dtauc.numel(), 2 + nstr), dtype=torch.float64)
+    prop[..., 0] = dtauc
+    prop[..., 1] = ssalb
+    atmosphere = prepare_atmosphere(prop, nstr=nstr, nmom=nstr)
+    optics = prepare_layer_optics(atmosphere, nstr=nstr, deltam=False)
+    quadrature = gaussian_quadrature(nstr, device="cpu")
+    values, vectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(optics, quadrature, nstr=nstr)
+    )
+    grid = prepare_output_grid(
+        torch.tensor(fixture["user_tau"], dtype=torch.float64),
+        atmosphere,
+        optics,
+        deltam=False,
+    )
+    fisot = torch.full((1, 1), fixture["fisot"], dtype=torch.float64)
+    constants = solve_tp9_boundary_system(
+        build_tp9_boundary_system(vectors, values, optics, fisot)
+    )
+    fluxes = extract_tp9_fluxes(
+        vectors, values, optics, grid, quadrature, constants
+    )
+    assert torch.allclose(
+        fluxes[0, 0],
+        torch.tensor(fixture["flux"], dtype=torch.float64),
+        atol=fixture["atol"],
+        rtol=fixture["rtol"],
     )
