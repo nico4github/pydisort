@@ -289,6 +289,15 @@ completed, and that smoke test passed again. Do not retry sub-warp blocks; the
 next experiment must preserve 32-thread warp blocks and vary only a
 full-warp-safe residency or workspace policy.
 
+
+The first full-warp-safe trial raised `kResidentWarpsPerSm` from two to four.
+Focused CUDA backend and CPU/CUDA agreement tests passed (**69 passed**). On the
+100-layer production `(1024,17)` case, CUDA event time improved from **16.493 s**
+to **14.876 s** (9.8%). It raises cached workspace use from roughly 22 GB to
+52 GB on the H100, which remains within the device budget. Retain this setting
+and regenerate the benchmark artifact; it reduces chunking from three launches
+to two but does not yet beat the 9.732 s CPU result.
+
 ### Phase 3 — optimize transfer and application integration
 
 Act only if `transfer_boundary` shows transfers dominate end-to-end time.
