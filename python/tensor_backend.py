@@ -373,6 +373,8 @@ def build_tp9_boundary_system(
     eigenvalues: torch.Tensor,
     optics: TensorLayerOptics,
     fisot: torch.Tensor,
+    beam_source: torch.Tensor | None = None,
+    umu0: torch.Tensor | None = None,
 ) -> TensorBoundarySystem:
     """Assemble TP9's plane-parallel, no-beam, black-surface system.
 
@@ -424,6 +426,20 @@ def build_tp9_boundary_system(
     ).unsqueeze(-2)
     matrix[..., :nn, nn:nstr] = top[..., nn:]
     rhs[..., :nn] = fisot.unsqueeze(-1)
+    if (beam_source is None) != (umu0 is None):
+        raise ValueError("beam_source and umu0 must be supplied together")
+    if beam_source is not None and umu0 is not None:
+        if beam_source.shape != (*eigenvectors.shape[:-2], nstr):
+            raise ValueError("beam_source is incompatible with eigenvectors")
+        if umu0.shape != eigenvectors.shape[:2]:
+            raise ValueError("umu0 must have shape (nwave, ncol)")
+        expbea = torch.exp(-optics.taucpr / umu0.unsqueeze(-1))
+        rhs[..., :nn] -= beam_source[..., 0, :nn].flip(dims=(-1,))
+        rhs[..., -nn:] = -beam_source[..., -1, nn:] * expbea[
+            ..., -1
+        ].unsqueeze(-1)
+    else:
+        expbea = None
 
     for layer in range(nlyr - 1):
         row = nn + layer * nstr
@@ -473,6 +489,9 @@ def extract_tp9_fluxes(
     grid: TensorOutputGrid,
     quadrature: TensorQuadrature,
     constants: torch.Tensor,
+    beam_source: torch.Tensor | None = None,
+    umu0: torch.Tensor | None = None,
+    fbeam: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Extract homogeneous TP9 diffuse fluxes at the requested optical depths.
 
@@ -529,6 +548,20 @@ def extract_tp9_fluxes(
         dim=-1,
     )
     intensity = (gc @ (layer_constants * factors).unsqueeze(-1)).squeeze(-1)
+    direct = None
+    if any(value is not None for value in (beam_source, umu0, fbeam)):
+        if beam_source is None or umu0 is None or fbeam is None:
+            raise ValueError(
+                "beam_source, umu0, and fbeam must be supplied together"
+            )
+        if beam_source.shape != (*eigenvectors.shape[:-2], nstr):
+            raise ValueError("beam_source is incompatible with eigenvectors")
+        beam = torch.gather(
+            beam_source, -2, layer[..., None].expand(*layer.shape, nstr)
+        )
+        attenuation = torch.exp(-grid.utaupr / umu0.unsqueeze(-1))
+        intensity = intensity + beam * attenuation.unsqueeze(-1)
+        direct = umu0.unsqueeze(-1) * fbeam.unsqueeze(-1) * attenuation
     positive_mu = quadrature.cmu[:nn]
     positive_weight = quadrature.cwt[:nn]
     downward = (
@@ -548,6 +581,8 @@ def extract_tp9_fluxes(
             dim=-1,
         )
     )
+    if direct is not None:
+        downward = downward + direct
     return torch.stack((upward, downward), dim=-1)
 
 
@@ -560,6 +595,8 @@ def solve_tp9_flux(
     nstr: int,
     nmom: int,
     deltam: bool = False,
+    umu0: torch.Tensor | None = None,
+    fbeam: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Run the connected pure-PyTorch TP9a flux subset end to end.
 
@@ -578,11 +615,28 @@ def solve_tp9_flux(
     eigenvalues, eigenvectors = solve_reduced_eigenproblem(
         build_reduced_eigen_matrix(optics, quadrature, nstr=nstr)
     )
+    if (umu0 is None) != (fbeam is None):
+        raise ValueError("umu0 and fbeam must be supplied together")
+    beam_source = (
+        None
+        if umu0 is None or fbeam is None
+        else build_tp9_beam_source(optics, quadrature, umu0, fbeam, nstr=nstr)
+    )
     constants = solve_tp9_boundary_system(
-        build_tp9_boundary_system(eigenvectors, eigenvalues, optics, fisot)
+        build_tp9_boundary_system(
+            eigenvectors, eigenvalues, optics, fisot, beam_source, umu0
+        )
     )
     return extract_tp9_fluxes(
-        eigenvectors, eigenvalues, optics, grid, quadrature, constants
+        eigenvectors,
+        eigenvalues,
+        optics,
+        grid,
+        quadrature,
+        constants,
+        beam_source,
+        umu0,
+        fbeam,
     )
 
 

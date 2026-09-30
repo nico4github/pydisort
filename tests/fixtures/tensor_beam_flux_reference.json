@@ -1,0 +1,16 @@
+{
+  "case": "one-layer isotropic beam over black Lambertian surface",
+  "provenance": "Local C-DISORT float64 reference generated from the matching public pydisort configuration.",
+  "nstr": 4,
+  "dtauc": [1.0],
+  "ssalb": [0.5],
+  "user_tau": [0.0, 1.0],
+  "umu0": 0.5,
+  "fbeam": 3.141592653589793,
+  "fisot": 0.0,
+  "deltam": false,
+  "flux_order": ["upward", "downward"],
+  "flux": [[0.23633517724894976, 1.5707963267948966], [0.0, 0.35924394001786242]],
+  "atol": 0.0000001,
+  "rtol": 0.0000001
+}
