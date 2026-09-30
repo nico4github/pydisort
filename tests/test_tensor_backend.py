@@ -1293,3 +1293,73 @@ def test_tensor_tp5_cloud_flux_cases_match_cdisort_fixtures(device):
             atol=fixture["atol"],
             rtol=fixture["rtol"],
         ), case["label"]
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_quadrature_intensity_integrates_to_homogeneous_flux(device):
+    """The first m=0 radiance increment must reproduce its flux parent."""
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        build_tp9_boundary_system,
+        extract_tp9_fluxes,
+        extract_tp9_quadrature_intensity,
+        gaussian_quadrature,
+        prepare_atmosphere,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_reduced_eigenproblem,
+        solve_tp9_boundary_system,
+    )
+
+    nstr = 4
+    prop = torch.zeros((1, 1, 1, 2 + nstr), dtype=torch.float64, device=device)
+    prop[..., 0] = 0.7
+    prop[..., 1] = 0.4
+    fisot = torch.full(
+        (1, 1), 1.0 / torch.pi, dtype=torch.float64, device=device
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=nstr, nmom=nstr)
+    optics = prepare_layer_optics(atmosphere, nstr=nstr, deltam=False)
+    grid = prepare_output_grid(
+        torch.tensor([0.0, 0.7], dtype=torch.float64, device=device),
+        atmosphere,
+        optics,
+        deltam=False,
+    )
+    quadrature = gaussian_quadrature(nstr, device=device)
+    values, vectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(optics, quadrature, nstr=nstr)
+    )
+    constants = solve_tp9_boundary_system(
+        build_tp9_boundary_system(vectors, values, optics, fisot)
+    )
+    intensity = extract_tp9_quadrature_intensity(
+        vectors, values, optics, grid, constants
+    )
+    fluxes = extract_tp9_fluxes(
+        vectors, values, optics, grid, quadrature, constants
+    )
+    nn = nstr // 2
+    expected_upward = (
+        2.0
+        * torch.pi
+        * torch.sum(
+            intensity[..., nn:] * quadrature.cwt[:nn] * quadrature.cmu[:nn],
+            dim=-1,
+        )
+    )
+    expected_downward = (
+        2.0
+        * torch.pi
+        * torch.sum(
+            intensity[..., :nn]
+            * (quadrature.cwt[:nn] * quadrature.cmu[:nn]).flip(0),
+            dim=-1,
+        )
+    )
+    assert torch.allclose(
+        fluxes[..., 0], expected_upward, atol=1e-13, rtol=1e-12
+    )
+    assert torch.allclose(
+        fluxes[..., 1], expected_downward, atol=1e-13, rtol=1e-12
+    )

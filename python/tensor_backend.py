@@ -604,6 +604,68 @@ def solve_tp9_boundary_system(system: TensorBoundarySystem) -> torch.Tensor:
     )
 
 
+@timed(name="tensor_backend.extract_tp9_quadrature_intensity")
+def extract_tp9_quadrature_intensity(
+    eigenvectors: torch.Tensor,
+    eigenvalues: torch.Tensor,
+    optics: TensorLayerOptics,
+    grid: TensorOutputGrid,
+    constants: torch.Tensor,
+) -> torch.Tensor:
+    """Return the homogeneous m=0 intensity at quadrature directions.
+
+    This is the first radiance reconstruction increment.  It retains the
+    device-resident layer/mode convention used by flux extraction and returns
+    ``(nwave, ncol, ntau, nstr)`` before source interpolation or Fourier
+    summation is introduced.
+    """
+    nstr = eigenvectors.shape[-1]
+    nn = nstr // 2
+    nlyr = eigenvectors.shape[-3]
+    if constants.shape != (*eigenvectors.shape[:-3], nstr * nlyr):
+        raise ValueError("constants are incompatible with eigenvectors")
+    if grid.layru.shape[:2] != eigenvectors.shape[:2]:
+        raise ValueError(
+            "output grid and eigenvectors have incompatible batches"
+        )
+    constants = constants.reshape(*eigenvectors.shape[:-3], nlyr, nstr)
+    layer = grid.layru - 1
+    gc = torch.gather(
+        eigenvectors,
+        -3,
+        layer[..., None, None].expand(*layer.shape, nstr, nstr),
+    )
+    layer_constants = torch.gather(
+        constants, -2, layer[..., None].expand(*layer.shape, nstr)
+    )
+    taucpr_end = torch.gather(optics.taucpr, -1, layer)
+    taucpr_begin = torch.gather(
+        torch.cat(
+            (
+                torch.zeros_like(optics.taucpr[..., :1]),
+                optics.taucpr[..., :-1],
+            ),
+            dim=-1,
+        ),
+        -1,
+        layer,
+    )
+    values = torch.gather(
+        eigenvalues, -2, layer[..., None].expand(*layer.shape, nn)
+    )
+    factors = torch.cat(
+        (
+            torch.exp(
+                values.flip(dims=(-1,))
+                * (grid.utaupr - taucpr_end).unsqueeze(-1)
+            ),
+            torch.exp(-values * (grid.utaupr - taucpr_begin).unsqueeze(-1)),
+        ),
+        dim=-1,
+    )
+    return (gc @ (layer_constants * factors).unsqueeze(-1)).squeeze(-1)
+
+
 @timed(name="tensor_backend.extract_tp9_fluxes")
 def extract_tp9_fluxes(
     eigenvectors: torch.Tensor,
