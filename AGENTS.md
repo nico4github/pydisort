@@ -39,6 +39,12 @@ C-DISORT fixture first. After it passes on CPU and CUDA, add and pass a
 nonuniform five-layer fixture before adding beam, thermal, general-source, or
 surface terms to the user-angle path.
 
+Every user-angle reference test must exercise both the symmetric direction
+pair `(-0.5, 0.5)` and the asymmetric pair `(-0.3, 0.4)`. Apply this to every
+new and existing radiance fixture as it is touched, and require CPU/H100 CUDA
+parity for both pairs. Do not use mirrored-angle coverage as the sole evidence
+for either sign branch.
+
 Before implementing a missing feature, inspect the relevant Fortran input
 flag/output convention in `../disort-pyf`, the cdisort 2.1.3 state and test
 driver, current pydisort wrapper/bindings, and neighbouring tests. Record the
