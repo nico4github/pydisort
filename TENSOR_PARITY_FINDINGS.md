@@ -93,18 +93,16 @@ moments, delta-M scaling, and conservative transport.
 
 ## Next investigation
 
-Trace the first downstream use of the verified beam vectors with the same
-black-surface probe:
-
-1. Compare C-DISORT's `c_solve0` boundary RHS entries that consume `ZZ` with
-   the tensor boundary RHS before its dense solve. This catches direction and
-   layer-interface indexing independently of the beam source.
-2. If that matches, compare the solved integration constants and then the
-   `c_fluxes` beam contribution at each output depth.
-3. Extend the required CPU/CUDA fixture set to the next Fortran/C-DISORT
-   reference cases, preserving the source-decomposition pattern when needed.
-4. Keep full Problem 9c as the regression gate for diffuse, beam, thermal,
-   and Lambertian lower-boundary composition.
+1. Extend the flux fixture set to the remaining supported reference cases,
+   preserving explicit CPU/CUDA parity and source decomposition where it helps
+   isolate a defect.
+2. Add tensor support for general source arrays, then establish a stored
+   nonzero reference before any performance work uses that path.
+3. Add tensor radiance/Fourier-output capability and non-Lambertian surface
+   coupling only after their public C-backend contracts and references are
+   selected.
+4. Establish the representative 100-layer / 1000-channel tensor workload,
+   then begin the end-to-end timing and CUDA optimization baseline.
 
 ## Apple MPS note
 

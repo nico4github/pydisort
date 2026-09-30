@@ -162,10 +162,10 @@ size; the remaining boundary and flux stages carry most of the work.
 | 9 | Layer-continuity factors | Complete |
 | 10 | Generic batched block-tridiagonal solver | Complete |
 | 11 | C-DISORT TP9 boundary block and RHS assembly | Complete |
-| 12 | Beam/source terms and constants of integration | Direct plane-parallel beam, finite-band thermal layer/surface/top sources, and Lambertian direct-beam/thermal reflection complete; general source pending |
-| 13 | Flux extraction on the user output grid | Complete for no-beam TP9a |
-| 14 | Complete tensor flow C-DISORT/Fortran parity tests | Active: TP9a/TP9b, direct beam, Problem 6c Lambertian reflection, C-DISORT thermal, and a Fortran-v4-validated finite-band thermal CPU/CUDA fixture |
-| 15 | CPU/H100 end-to-end timing, incremental log, and optimization baseline | Pending |
+| 12 | Beam/source terms and constants of integration | Complete for plane-parallel diffuse, direct beam, finite-band thermal layer/surface/top sources, and Lambertian direct-beam/thermal reflection; general source pending |
+| 13 | Flux extraction on the user output grid | Complete for the supported plane-parallel flux path |
+| 14 | Complete tensor flow C-DISORT/Fortran parity tests | Complete for TP9a/TP9b/TP9c, Test Problems 1--3, 6a--6c, direct beam, Lambertian reflection, and finite-band thermal CPU/CUDA fixtures |
+| 15 | CPU/H100 end-to-end timing, incremental log, and optimization baseline | Pending after a representative 100-layer / 1000-channel tensor workload is established |
 
 ## Earliest-reference rule
 
@@ -188,8 +188,6 @@ report. End-to-end timing is not a prerequisite for this numerical gate.
 
 The full Problem 9c flux case is decomposed into diffuse-only, beam-only, and
 thermal-only runs in `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
-The diffuse component is a required CPU/CUDA parity test. Beam-only and
-thermal-only components are strict expected-fail tests while their remaining
-combined-source boundary terms are reconstructed. A future unexpected pass is
-therefore visible in CI and must be promoted to an ordinary permanent parity
-test rather than silently discarded.
+Diffuse-only, beam-only, thermal-only, and combined-source components are all
+required CPU/CUDA parity tests. They are retained separately so later tensor
+optimization cannot hide a source-composition regression.
