@@ -388,3 +388,23 @@ buffers.
 passes the smoke test and agreement suite. If the per-thread C-DISORT path
 cannot do so safely within the existing workspace model, revert its scaffold
 and retain the explicit CUDA `NotImplementedError`.
+
+#### Phase 2 mapping checkpoint — 2026-09-30
+
+The transfer audit and source review establish that TP9 is limited by the
+mapping of the general solver, not host/device transport. The kernel assigns
+one independent scalar solve to each lane, allocates a private C-DISORT
+state/output from pmem, copies the layer profile into it, then executes
+`c_disort` serially in that lane. `gpu_chunk_kernel()` contains 32 scalar lanes
+per block and caps the workspace to two resident warps per SM. The four-warp
+trial did not reproduce a gain and grew workspace to about 52 GB.
+
+Do not repeat cache, transfer, block-size, or scalar-residency experiments.
+The next work is a narrow feasibility design for the 32-stream general TP9
+path: isolate a high-cost solver stage, specify its dependencies and required
+float64 error bound, and prototype either warp/block cooperation within one
+solve or a structure-of-arrays batched stage across solves. Retain a prototype
+only after CPU/CUDA agreement and repeated 1,024 x 17 event timings improve.
+Nsight Compute metrics would refine the choice, but the tool is unavailable on
+the current H100 host; do not claim register or achieved-occupancy values until
+it is available.

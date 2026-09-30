@@ -60,3 +60,29 @@ end-to-end timing against a 16.49 s kernel-dominated solve, so it remains
 rejected. The benchmark now records this transfer contract and measures
 `cuda_d2h_output_seconds` using the actual CUDA result, replacing the old
 misleading metric that copied device inputs back to the host.
+
+## CUDA mapping assessment — 2026-09-30
+
+The lack of a production CUDA gain is consistent with the current mapping being
+host-solver-friendly rather than GPU-friendly. `disort_dispatch.cu` assigns one
+independent `(wavelength, column)` C-DISORT solve to each CUDA lane. Before
+calling `c_disort`, every lane allocates a complete private state/output from
+its pmem slice and copies the 100-layer property profile into that state. The
+solver's control flow and dense work then remain serial within that lane.
+
+`gpu_chunk_kernel()` groups 32 scalar lanes in a block and deliberately caps
+resident work at two such warps per SM. Thus the H100 runs at most 64 scalar
+solves concurrently per SM under this policy, even for the 17,408-solve
+production batch. The four-warp trial used about 52 GB of workspace and showed
+no reproducible benefit, so scalar-concurrency tuning is exhausted for the
+current ownership model.
+
+This is source-level and Nsight Systems evidence, not an occupancy/register
+measurement: Nsight Compute is not installed on the H100 environment. The
+next CUDA investigation is therefore a feasibility design, not another
+transfer or residency tweak. It must identify a numerically safe stage of the
+32-stream general solver that can run cooperatively within a warp/block or as a
+batched operation across solves, with structure-of-arrays work storage. A
+prototype must first retain float64 CPU/CUDA agreement and be timed against the
+1,024 x 17 TP9 baseline. Replacing the current lane-local C-DISORT call in one
+unmeasured rewrite would be too high-risk.
