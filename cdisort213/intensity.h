@@ -1270,6 +1270,15 @@ DISPATCH_MACRO inline void c_user_intensities(disort_state   *ds,
         GU(iu,iq,lc) *= LL(iq,lc);
       }
     }
+#ifndef __CUDA_ARCH__
+    if (mazim == 0 && getenv("PYDISORT_TRACE_USER_RAY") != NULL) {
+      fprintf(stderr, "PYDISORT_TRACE_USER_GU layer=%d", lc);
+      for (iu = 1; iu <= ds->numu; iu++)
+        for (iq = 1; iq <= ds->nstr; iq++)
+          fprintf(stderr, " %.17g", GU(iu, iq, lc));
+      fprintf(stderr, "\n");
+    }
+#endif
   }
 
   /*
@@ -1590,4 +1599,3 @@ DISPATCH_MACRO inline double c_xi_func(double umu1,
 }
 
 /*============================= end of c_xi_func() ======================*/
-

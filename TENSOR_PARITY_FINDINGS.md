@@ -111,6 +111,11 @@ depths cover both an interface and an interior point in the second layer. The
 fixture is present; the tensor implementation and CPU/H100 assertion remain
 pending.
 
+`0003-user-ray-trace.patch` retains an opt-in CPU diagnostic for the
+post-constant user-angle modes in `c_user_intensities`. Set
+`PYDISORT_TRACE_USER_RAY` only while investigating a user-ray mismatch; it
+does not affect ordinary solver runs.
+
 ## Rejected hypotheses
 
 - **Delta-M mismatch:** running the tensor probe without delta-M left the
