@@ -213,10 +213,16 @@ def gaussian_quadrature(
     )
 
 
+@dataclass(frozen=True)
+class TensorReducedEigenMatrix:
+    matrix: torch.Tensor
+    amb: torch.Tensor
+
+
 @timed(name="tensor_backend.build_reduced_eigen_matrix")
 def build_reduced_eigen_matrix(
     optics: TensorLayerOptics, quadrature: TensorQuadrature, *, nstr: int
-) -> torch.Tensor:
+) -> TensorReducedEigenMatrix:
     """Build TP9's batched mazim=0 reduced eigenproblem matrix (SS(12))."""
     nn = nstr // 2
     mu = quadrature.cmu
@@ -236,14 +242,15 @@ def build_reduced_eigen_matrix(
     eye = torch.eye(nn, dtype=mu.dtype, device=mu.device) / mu[:nn].view(nn, 1)
     amb = alpha - beta - eye
     apb = alpha + beta - eye
-    return apb @ amb
+    return TensorReducedEigenMatrix(matrix=apb @ amb, amb=amb)
 
 
 @timed(name="tensor_backend.solve_reduced_eigenproblem")
 def solve_reduced_eigenproblem(
-    matrix: torch.Tensor,
+    reduced: TensorReducedEigenMatrix,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Solve the batched real reduced eigenproblem used by the TP9 flux path."""
+    matrix = reduced.matrix
     values, vectors = torch.linalg.eig(matrix)
     scale = values.real.abs().amax(dim=-1, keepdim=True).clamp_min(1.0)
     if torch.any(
@@ -252,4 +259,15 @@ def solve_reduced_eigenproblem(
         raise RuntimeError(
             "reduced DISORT eigenproblem produced complex eigenvalues"
         )
-    return values.real.abs().sqrt(), vectors.real
+    eigenvalues = values.real.abs().sqrt()
+    gpplgm = (reduced.amb @ vectors.real) / eigenvalues.unsqueeze(-2)
+    gpmigm = vectors.real
+    positive = torch.cat(
+        (0.5 * (gpplgm + gpmigm), 0.5 * (gpplgm - gpmigm)), dim=-2
+    )
+    negative = torch.cat(
+        (0.5 * (-gpplgm + gpmigm), 0.5 * (-gpplgm - gpmigm)), dim=-2
+    )
+    return eigenvalues, torch.cat(
+        (negative.flip(dims=(-1,)), positive), dim=-1
+    )

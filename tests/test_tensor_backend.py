@@ -156,16 +156,22 @@ def test_reduced_eigen_matrix_is_batched_and_finite():
     matrix = build_reduced_eigen_matrix(
         optics, gaussian_quadrature(2, device="cpu"), nstr=2
     )
-    assert matrix.shape == (2, 3, 4, 1, 1)
-    assert torch.isfinite(matrix).all()
+    assert matrix.matrix.shape == (2, 3, 4, 1, 1)
+    assert torch.isfinite(matrix.matrix).all()
 
 
 def test_reduced_eigensolve_is_batched_and_real():
     from pydisort.tensor_backend import solve_reduced_eigenproblem
 
     matrix = torch.tensor([[[[[4.0, 0.0], [0.0, 9.0]]]]], dtype=torch.float64)
-    values, vectors = solve_reduced_eigenproblem(matrix)
+    from pydisort.tensor_backend import TensorReducedEigenMatrix
+
+    reduced = TensorReducedEigenMatrix(
+        matrix=matrix,
+        amb=torch.eye(2, dtype=torch.float64).reshape(1, 1, 1, 2, 2),
+    )
+    values, vectors = solve_reduced_eigenproblem(reduced)
     assert torch.equal(
         values, torch.tensor([[[[2.0, 3.0]]]], dtype=torch.float64)
     )
-    assert vectors.shape == matrix.shape
+    assert vectors.shape == (1, 1, 1, 4, 4)
