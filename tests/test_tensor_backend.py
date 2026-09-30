@@ -96,3 +96,32 @@ def test_prepare_layer_optics_matches_delta_m_formulas():
         rtol=0.0,
         atol=0.0,
     )
+
+
+def test_prepare_output_grid_matches_delta_m_layer_mapping():
+    from pydisort.tensor_backend import (
+        prepare_layer_optics,
+        prepare_output_grid,
+    )
+
+    prop = torch.tensor(
+        [[[[2.0, 0.5, 0.0, 0.4], [3.0, 0.25, 0.0, 0.8]]]], dtype=torch.float64
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=2, nmom=2)
+    optics = prepare_layer_optics(atmosphere, nstr=2, deltam=True)
+    grid = prepare_output_grid(
+        torch.tensor([0.0, 2.0, 3.0, 5.0], dtype=torch.float64),
+        atmosphere,
+        optics,
+        deltam=True,
+    )
+    assert torch.equal(grid.layru, torch.tensor([[[1, 1, 2, 2]]]))
+    assert torch.allclose(
+        grid.utaupr[..., 0],
+        torch.zeros((1, 1), dtype=torch.float64),
+        atol=0,
+        rtol=0,
+    )
+    assert torch.allclose(
+        grid.utaupr[..., -1], optics.taucpr[..., -1], atol=0, rtol=0
+    )

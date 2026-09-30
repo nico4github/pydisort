@@ -137,3 +137,48 @@ def prepare_layer_optics(
             * atmosphere.pmom[..., :nstr]
         )
     return TensorLayerOptics(oprim, dtaucpr, tauc, taucpr, flyr, gl)
+
+
+@dataclass(frozen=True)
+class TensorOutputGrid:
+    """User optical depths mapped onto the delta-M computational mesh."""
+
+    layru: torch.Tensor
+    utaupr: torch.Tensor
+
+
+@timed(name="tensor_backend.prepare_output_grid")
+def prepare_output_grid(
+    utau: torch.Tensor,
+    atmosphere: TensorAtmosphere,
+    optics: TensorLayerOptics,
+    *,
+    deltam: bool,
+) -> TensorOutputGrid:
+    """Vectorize C-DISORT's user-depth layer lookup and delta-M transform."""
+    if utau.ndim != 1 or utau.dtype != torch.float64:
+        raise ValueError("utau must be a one-dimensional float64 tensor")
+    if utau.device != optics.tauc.device:
+        raise ValueError("utau and optics must be on the same device")
+    if torch.any(utau < 0) or torch.any(utau > optics.tauc[..., -1:].max()):
+        raise ValueError("utau must lie within the atmospheric optical depth")
+    layru0 = torch.searchsorted(
+        optics.tauc, utau.expand(*optics.tauc.shape[:-1], -1), right=False
+    )
+    layru0 = layru0.clamp(max=optics.tauc.shape[-1] - 1)
+    previous_tauc = torch.cat(
+        (torch.zeros_like(optics.tauc[..., :1]), optics.tauc[..., :-1]), dim=-1
+    )
+    previous_taucpr = torch.cat(
+        (torch.zeros_like(optics.taucpr[..., :1]), optics.taucpr[..., :-1]),
+        dim=-1,
+    )
+    gather = layru0
+    if deltam:
+        factor = 1.0 - atmosphere.ssalb * optics.flyr
+        utaupr = torch.gather(previous_taucpr, -1, gather) + torch.gather(
+            factor, -1, gather
+        ) * (utau - torch.gather(previous_tauc, -1, gather))
+    else:
+        utaupr = utau.expand_as(gather)
+    return TensorOutputGrid(layru=layru0 + 1, utaupr=utaupr)
