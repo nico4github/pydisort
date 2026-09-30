@@ -449,3 +449,25 @@ def test_solve_tp9_flux_matches_connected_stage_pipeline():
         atol=1e-13,
         rtol=0,
     )
+
+
+def test_tp9_beam_source_is_zero_without_scattering_and_batched():
+    from pydisort.tensor_backend import (
+        build_tp9_beam_source,
+        gaussian_quadrature,
+        prepare_layer_optics,
+    )
+
+    prop = torch.zeros((2, 3, 4, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    source = build_tp9_beam_source(
+        optics,
+        gaussian_quadrature(4, device="cpu"),
+        torch.full((2, 3), 0.5, dtype=torch.float64),
+        torch.ones((2, 3), dtype=torch.float64),
+        nstr=4,
+    )
+    assert source.shape == (2, 3, 4, 4)
+    assert torch.equal(source, torch.zeros_like(source))

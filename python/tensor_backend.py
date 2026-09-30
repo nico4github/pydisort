@@ -584,3 +584,71 @@ def solve_tp9_flux(
     return extract_tp9_fluxes(
         eigenvectors, eigenvalues, optics, grid, quadrature, constants
     )
+
+
+@timed(name="tensor_backend.build_tp9_beam_source")
+def build_tp9_beam_source(
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    umu0: torch.Tensor,
+    fbeam: torch.Tensor,
+    *,
+    nstr: int,
+) -> torch.Tensor:
+    """Compute C-DISORT's plane-parallel mazim=0 beam particular solution.
+
+    This is the batched form of ``c_upbeam`` for the restricted tensor flow.
+    It returns ``ZZ`` in C-DISORT quadrature-direction order; boundary RHS and
+    flux integration consume it in the following beam-integration increment.
+    """
+    if umu0.shape != optics.dtaucpr.shape[:2]:
+        raise ValueError("umu0 must have shape (nwave, ncol)")
+    if fbeam.shape != optics.dtaucpr.shape[:2]:
+        raise ValueError("fbeam must have shape (nwave, ncol)")
+    if (
+        umu0.dtype != optics.dtaucpr.dtype
+        or fbeam.dtype != optics.dtaucpr.dtype
+    ):
+        raise ValueError("beam inputs must use the optics dtype")
+    if (
+        umu0.device != optics.dtaucpr.device
+        or fbeam.device != optics.dtaucpr.device
+    ):
+        raise ValueError("beam inputs must share the optics device")
+    if torch.any(umu0 <= 0):
+        raise ValueError("umu0 must be positive for the plane-parallel beam")
+
+    nn = nstr // 2
+    mu = quadrature.cmu
+    ylm = torch.empty((nstr, nstr), dtype=mu.dtype, device=mu.device)
+    ylm0 = torch.empty((*umu0.shape, nstr), dtype=mu.dtype, device=mu.device)
+    ylm[0] = 1.0
+    ylm0[..., 0] = 1.0
+    ylm[1] = mu
+    ylm0[..., 1] = umu0
+    for degree in range(2, nstr):
+        ylm[degree] = (
+            (2 * degree - 1) * mu * ylm[degree - 1]
+            - (degree - 1) * ylm[degree - 2]
+        ) / degree
+        ylm0[..., degree] = (
+            (2 * degree - 1) * umu0 * ylm0[..., degree - 1]
+            - (degree - 1) * ylm0[..., degree - 2]
+        ) / degree
+    cc = 0.5 * torch.einsum(
+        "...l,li,lj,j->...ij", optics.gl, ylm, ylm, quadrature.cwt
+    )
+    system = -cc
+    diagonal = torch.arange(nstr, device=mu.device)
+    system[..., diagonal, diagonal] += 1.0 + mu.view(
+        1, 1, 1, nstr
+    ) / umu0.unsqueeze(-1).unsqueeze(-1)
+    source = (
+        fbeam.unsqueeze(-1).unsqueeze(-1)
+        * torch.einsum("abcl,li,abl->abci", optics.gl, ylm, ylm0)
+        / (4.0 * torch.pi)
+    )
+    solution = torch.linalg.solve(system, source.unsqueeze(-1)).squeeze(-1)
+    return torch.cat(
+        (solution[..., nn:].flip(dims=(-1,)), solution[..., :nn]), dim=-1
+    )
