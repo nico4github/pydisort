@@ -662,6 +662,20 @@ def solve_tp9_flux(
         raise ValueError(
             "thermal_xr0 and thermal_xr1 must be supplied together"
         )
+    if temperature is not None:
+        if thermal_xr0 is not None:
+            raise ValueError(
+                "supply either thermal coefficients or temperature inputs"
+            )
+        if wavenumber_lower is None or wavenumber_upper is None:
+            raise ValueError(
+                "temperature requires lower and upper wavenumber bounds"
+            )
+        thermal_xr0, thermal_xr1 = prepare_thermal_coefficients(
+            temperature, optics, wavenumber_lower, wavenumber_upper
+        )
+    elif wavenumber_lower is not None or wavenumber_upper is not None:
+        raise ValueError("wavenumber bounds require temperature inputs")
     thermal0, thermal1 = (
         (None, None)
         if thermal_xr0 is None or thermal_xr1 is None
@@ -825,11 +839,11 @@ def planck_band_radiance(
     wavenumber_lower: torch.Tensor,
     wavenumber_upper: torch.Tensor,
 ) -> torch.Tensor:
-    """Integrate C-DISORT's spectral Planck radiance over a wavenumber band.
+    """Return C-DISORT's finite-band Planck radiance on the tensor device.
 
-    The calculation uses the same C-DISORT physical constants and a fixed
-    device-side trapezoidal quadrature.  It is a tensor reference stage; the
-    later thermal parity fixture fixes its required C/Fortran tolerance.
+    This is the vectorized ``c_planck_func2`` series calculation, including
+    its spectral-limit convention.  Matching that routine makes stored C and
+    Fortran thermal reference values meaningful without a native callback.
     """
     if temperature.dtype != torch.float64:
         raise ValueError("temperature must use float64")
@@ -849,25 +863,130 @@ def planck_band_radiance(
         raise ValueError("temperature and wavenumbers must be nonnegative")
     if torch.any(wavenumber_upper < wavenumber_lower):
         raise ValueError("upper wavenumber must not be below lower wavenumber")
-    nodes = torch.linspace(
-        0.0, 1.0, 129, dtype=torch.float64, device=temperature.device
-    )
-    wavenumber = (
-        wavenumber_lower.unsqueeze(-1)
-        + (wavenumber_upper - wavenumber_lower).unsqueeze(-1) * nodes
-    )
     temperature_safe = temperature.clamp_min(
         torch.finfo(temperature.dtype).tiny
     )
-    exponent = 1.438786 * wavenumber / temperature_safe.unsqueeze(-1)
-    spectral = 1.1911e-8 * wavenumber.pow(3) / torch.expm1(exponent)
-    weights = torch.ones_like(nodes)
-    weights[0] = 0.5
-    weights[-1] = 0.5
-    integral = (
-        (spectral * weights).sum(dim=-1)
-        * (wavenumber_upper - wavenumber_lower)
-        / (nodes.numel() - 1)
+    lower = wavenumber_lower.unsqueeze(-1)
+    upper = wavenumber_upper.unsqueeze(-1)
+    c2 = 1.438786
+    sigma_over_pi = 5.67032e-8 / torch.pi
+    concentration = 15.0 / torch.pi**4
+    v_lower = c2 * lower / temperature_safe
+    v_upper = c2 * upper / temperature_safe
+
+    def cumulative_fraction(v: torch.Tensor) -> torch.Tensor:
+        power = (
+            concentration
+            * v.square()
+            * v
+            * (
+                1.0 / 3.0
+                + v
+                * (
+                    -1.0 / 8.0
+                    + v
+                    * (
+                        1.0 / 60.0
+                        + v.square()
+                        * (
+                            -1.0 / 5040.0
+                            + v.square()
+                            * (1.0 / 272160.0 - v.square() / 13305600.0)
+                        )
+                    )
+                )
+            )
+        )
+        thresholds = torch.tensor(
+            [10.25, 5.7, 3.9, 2.9, 2.3, 1.9],
+            dtype=v.dtype,
+            device=v.device,
+        )
+        mmax = 1 + (v.unsqueeze(-1) < thresholds).sum(dim=-1)
+        m = torch.arange(1, 8, dtype=v.dtype, device=v.device)
+        mv = v.unsqueeze(-1) * m
+        exponential = (
+            torch.exp(-mv) * (6.0 + mv * (6.0 + mv * (3.0 + mv))) / m.pow(4)
+        )
+        tail = concentration * torch.where(
+            m <= mmax.unsqueeze(-1), exponential, torch.zeros_like(exponential)
+        ).sum(dim=-1)
+        return torch.where(v < 1.5, power, tail)
+
+    fraction_lower = cumulative_fraction(v_lower)
+    fraction_upper = cumulative_fraction(v_upper)
+    lower_small = v_lower < 1.5
+    upper_small = v_upper < 1.5
+    integral_fraction = torch.where(
+        lower_small & upper_small,
+        fraction_upper - fraction_lower,
+        torch.where(
+            lower_small,
+            1.0 - fraction_lower - fraction_upper,
+            fraction_lower - fraction_upper,
+        ),
+    )
+    integral = sigma_over_pi * temperature_safe.pow(4) * integral_fraction
+    max_exponent = torch.log(
+        torch.full(
+            (),
+            torch.finfo(temperature.dtype).max,
+            dtype=temperature.dtype,
+            device=temperature.device,
+        )
+    )
+    close_band = (
+        (v_lower > torch.finfo(temperature.dtype).eps)
+        & (v_upper < max_exponent)
+        & ((upper - lower) / upper < 1.0e-2)
+    )
+    # Reproduce c_planck_func2's narrow-band Simpson iteration.  The series
+    # above is deliberately truncated as in C, so using it for this case would
+    # lose several digits through cancellation.
+    old_value = torch.zeros_like(v_lower)
+    simpson_value = torch.zeros_like(v_lower)
+    converged = torch.zeros_like(close_band)
+    interval = v_upper - v_lower
+    endpoints = v_lower.pow(3) / torch.expm1(v_lower) + v_upper.pow(
+        3
+    ) / torch.expm1(v_upper)
+    for n in range(1, 11):
+        node = torch.arange(
+            1, 2 * n, dtype=temperature.dtype, device=temperature.device
+        )
+        point = v_lower.unsqueeze(-1) + interval.unsqueeze(-1) * node / (2 * n)
+        coefficient = torch.where(
+            node.remainder(2) == 0,
+            torch.full_like(node, 2.0),
+            torch.full_like(node, 4.0),
+        )
+        current = (
+            (
+                endpoints
+                + (coefficient * point.pow(3) / torch.expm1(point)).sum(dim=-1)
+            )
+            * interval
+            / (6 * n)
+        )
+        newly_converged = ~converged & (
+            torch.abs((current - old_value) / current) <= 1.0e-6
+        )
+        simpson_value = torch.where(newly_converged, current, simpson_value)
+        converged = converged | newly_converged
+        old_value = current
+    simpson_value = torch.where(converged, simpson_value, old_value)
+    simpson_integral = (
+        sigma_over_pi * temperature_safe.pow(4) * concentration * simpson_value
+    )
+    integral = torch.where(close_band, simpson_integral, integral)
+    spectral_limit = (
+        1.1911e-8
+        * upper.pow(3)
+        * torch.exp(-c2 * upper / temperature_safe)
+        / (1.0 - torch.exp(-c2 * upper / temperature_safe))
+    )
+    integral = torch.where(
+        wavenumber_upper == wavenumber_lower, spectral_limit, integral
     )
     return torch.where(
         temperature < 1.0e-4, torch.zeros_like(integral), integral
