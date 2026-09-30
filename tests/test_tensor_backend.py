@@ -175,3 +175,30 @@ def test_reduced_eigensolve_is_batched_and_real():
         values, torch.tensor([[[[2.0, 3.0]]]], dtype=torch.float64)
     )
     assert vectors.shape == (1, 1, 1, 4, 4)
+
+
+def test_layer_continuity_blocks_scale_eigenvector_columns():
+    from pydisort.tensor_backend import (
+        TensorLayerOptics,
+        build_layer_continuity_blocks,
+    )
+
+    optics = TensorLayerOptics(
+        *(torch.ones((1, 1, 1), dtype=torch.float64) for _ in range(5)),
+        torch.ones((1, 1, 1, 2), dtype=torch.float64),
+    )
+    vectors = torch.arange(16, dtype=torch.float64).reshape(1, 1, 1, 4, 4)
+    values = torch.log(torch.tensor([[[[2.0, 3.0]]]], dtype=torch.float64))
+    upper, lower = build_layer_continuity_blocks(vectors, values, optics)
+    assert torch.allclose(
+        upper,
+        vectors[..., :2] * torch.tensor([2.0, 3.0], dtype=torch.float64),
+        rtol=1e-14,
+        atol=0.0,
+    )
+    assert torch.allclose(
+        lower,
+        vectors[..., 2:] * torch.tensor([2.0, 3.0], dtype=torch.float64),
+        rtol=1e-14,
+        atol=0.0,
+    )

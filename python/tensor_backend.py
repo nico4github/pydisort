@@ -271,3 +271,22 @@ def solve_reduced_eigenproblem(
     return eigenvalues, torch.cat(
         (negative.flip(dims=(-1,)), positive), dim=-1
     )
+
+
+@timed(name="tensor_backend.build_layer_continuity_blocks")
+def build_layer_continuity_blocks(
+    eigenvectors: torch.Tensor,
+    eigenvalues: torch.Tensor,
+    optics: TensorLayerOptics,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build batched adjacent-layer continuity factors for the flux boundary solve."""
+    nstr = eigenvectors.shape[-2]
+    nn = nstr // 2
+    if eigenvalues.ndim != 4 or eigenvalues.shape[-1] != nn:
+        raise ValueError(
+            "eigenvalues must have shape (nwave, ncol, nlyr, nstr / 2)"
+        )
+    scaled = torch.exp(eigenvalues * optics.dtaucpr.unsqueeze(-1))
+    upper = eigenvectors[..., :nn] * scaled.unsqueeze(-2)
+    lower = eigenvectors[..., nn:] * scaled.unsqueeze(-2)
+    return upper, lower
