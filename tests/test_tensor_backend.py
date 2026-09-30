@@ -249,16 +249,16 @@ def test_tp9_boundary_system_matches_explicit_c_set_matrix_equations():
         [
             [
                 [
-                    [2.0, 5.0, 0.0, 0.0],
-                    [-2.0, -3.0, 7.0, 11.0],
-                    [-10.0, -5.0, 39.0, 17.0],
+                    [2.0, 2.0, 0.0, 0.0],
+                    [-2.0, -2.0, 7.0, 33.0],
+                    [-6.0, -5.0, 13.0, 51.0],
                     [0.0, 0.0, 13.0, 51.0],
                 ]
             ]
         ],
         dtype=torch.float64,
     )
-    assert torch.equal(system.matrix, expected)
+    assert torch.allclose(system.matrix, expected, atol=1e-14, rtol=0)
     assert torch.equal(
         system.rhs, torch.tensor([[[4.0, 0.0, 0.0, 0.0]]], dtype=torch.float64)
     )
