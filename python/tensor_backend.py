@@ -262,15 +262,19 @@ def solve_reduced_eigenproblem(
     eigenvalues = values.real.abs().sqrt()
     gpplgm = (reduced.amb @ vectors.real) / eigenvalues.unsqueeze(-2)
     gpmigm = vectors.real
-    positive = torch.cat(
-        (0.5 * (gpplgm + gpmigm), 0.5 * (gpplgm - gpmigm)), dim=-2
-    )
+    gplus = 0.5 * (gpplgm + gpmigm)
+    gminus = 0.5 * (gpplgm - gpmigm)
+    negative_gplus = 0.5 * (-gpplgm + gpmigm)
+    negative_gminus = 0.5 * (-gpplgm - gpmigm)
+
+    # This follows c_solve_eigen's four GC assignments exactly. The first
+    # stream rows are positive cosines and the first mode columns carry the
+    # negative eigenvalues in reverse eigenvalue order.
+    positive = torch.cat((gminus.flip(dims=(-2,)), gplus), dim=-2)
     negative = torch.cat(
-        (0.5 * (-gpplgm + gpmigm), 0.5 * (-gpplgm - gpmigm)), dim=-2
-    )
-    return eigenvalues, torch.cat(
-        (negative.flip(dims=(-1,)), positive), dim=-1
-    )
+        (negative_gminus.flip(dims=(-2,)), negative_gplus), dim=-2
+    ).flip(dims=(-1,))
+    return eigenvalues, torch.cat((negative, positive), dim=-1)
 
 
 @timed(name="tensor_backend.build_layer_continuity_blocks")
@@ -403,7 +407,7 @@ def build_tp9_boundary_system(
     rhs = torch.zeros(
         (*batch, nrow), dtype=eigenvectors.dtype, device=eigenvectors.device
     )
-    factors = torch.exp(eigenvalues * optics.dtaucpr.unsqueeze(-1))
+    factors = torch.exp(-eigenvalues * optics.dtaucpr.unsqueeze(-1))
 
     top = eigenvectors[..., 0, :nn, :].flip(dims=(-2,))
     matrix[..., :nn, :nn] = top[..., :nn] * factors[..., 0, :].unsqueeze(-2)
@@ -448,3 +452,89 @@ def solve_tp9_boundary_system(system: TensorBoundarySystem) -> torch.Tensor:
     return torch.linalg.solve(system.matrix, system.rhs.unsqueeze(-1)).squeeze(
         -1
     )
+
+
+@timed(name="tensor_backend.extract_tp9_fluxes")
+def extract_tp9_fluxes(
+    eigenvectors: torch.Tensor,
+    eigenvalues: torch.Tensor,
+    optics: TensorLayerOptics,
+    grid: TensorOutputGrid,
+    quadrature: TensorQuadrature,
+    constants: torch.Tensor,
+) -> torch.Tensor:
+    """Extract homogeneous TP9 diffuse fluxes at the requested optical depths.
+
+    The returned final axis is ``(upward, downward)``. This reproduces the
+    homogeneous portion of ``c_fluxes`` for the no-beam, non-thermal TP9
+    subset. Particular beam and thermal source terms are introduced separately.
+    """
+    nstr = eigenvectors.shape[-1]
+    nn = nstr // 2
+    nlyr = eigenvectors.shape[-3]
+    if constants.shape != (*eigenvectors.shape[:-3], nstr * nlyr):
+        raise ValueError("constants are incompatible with eigenvectors")
+    constants = constants.reshape(*eigenvectors.shape[:-3], nlyr, nstr)
+    if grid.layru.shape != grid.utaupr.shape:
+        raise ValueError("output-grid layer and depth tensors must match")
+    if grid.layru.shape[:2] != eigenvectors.shape[:2]:
+        raise ValueError(
+            "output grid and eigenvectors have incompatible batches"
+        )
+    if quadrature.cmu.shape != (nstr,) or quadrature.cwt.shape != (nstr,):
+        raise ValueError("quadrature is incompatible with eigenvectors")
+
+    layer = grid.layru - 1
+    gather_gc = layer[..., None, None].expand(*layer.shape, nstr, nstr)
+    gc = torch.gather(eigenvectors, -3, gather_gc)
+    layer_constants = torch.gather(
+        constants,
+        -2,
+        layer[..., None].expand(*layer.shape, nstr),
+    )
+    taucpr_end = torch.gather(optics.taucpr, -1, layer)
+    taucpr_begin = torch.gather(
+        torch.cat(
+            (
+                torch.zeros_like(optics.taucpr[..., :1]),
+                optics.taucpr[..., :-1],
+            ),
+            dim=-1,
+        ),
+        -1,
+        layer,
+    )
+    values = torch.gather(
+        eigenvalues,
+        -2,
+        layer[..., None].expand(*layer.shape, nn),
+    )
+    negative = values.flip(dims=(-1,))
+    factors = torch.cat(
+        (
+            torch.exp(negative * (grid.utaupr - taucpr_end).unsqueeze(-1)),
+            torch.exp(-values * (grid.utaupr - taucpr_begin).unsqueeze(-1)),
+        ),
+        dim=-1,
+    )
+    intensity = (gc @ (layer_constants * factors).unsqueeze(-1)).squeeze(-1)
+    positive_mu = quadrature.cmu[:nn]
+    positive_weight = quadrature.cwt[:nn]
+    downward = (
+        2.0
+        * torch.pi
+        * torch.sum(
+            intensity[..., :nn]
+            * (positive_weight * positive_mu).flip(dims=(-1,)),
+            dim=-1,
+        )
+    )
+    upward = (
+        2.0
+        * torch.pi
+        * torch.sum(
+            intensity[..., nn:] * positive_weight * positive_mu,
+            dim=-1,
+        )
+    )
+    return torch.stack((upward, downward), dim=-1)

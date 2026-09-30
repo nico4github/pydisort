@@ -166,3 +166,20 @@ size; the remaining boundary and flux stages carry most of the work.
 | 13 | Flux extraction on the user output grid | Pending |
 | 14 | Complete tensor flow C-DISORT/Fortran parity tests | Pending |
 | 15 | CPU/H100 end-to-end timing, incremental log, and optimization baseline | Pending |
+
+## Earliest-reference rule
+
+A reconstruction stage is not considered numerically established merely because
+its tensors have the expected shapes or its linear algebra residual is small.
+As soon as a newly connected subset can produce a derived physical quantity,
+add a `pytest` reference case for that quantity before extending the solver.
+Use the simplest applicable reference first: an analytic absorption-only flux
+case, then a C-DISORT fixture, then the matching Fortran fixture for the
+restricted TP9 flow. Keep each test permanently so later optimization cannot
+silently break a previously reconstructed path.
+
+For the first executable TP9 flux subset this means: compare upward and
+downward fluxes at the configured user optical depths against C-DISORT and the
+Fortran v4 fixture immediately after constants and flux extraction are
+connected. Record the observed float64 tolerance in the test and benchmark
+report. End-to-end timing is not a prerequisite for this numerical gate.

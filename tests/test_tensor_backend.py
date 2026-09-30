@@ -249,10 +249,10 @@ def test_tp9_boundary_system_matches_explicit_c_set_matrix_equations():
         [
             [
                 [
-                    [2.0, 2.0, 0.0, 0.0],
-                    [-2.0, -2.0, 7.0, 33.0],
-                    [-6.0, -5.0, 13.0, 51.0],
-                    [0.0, 0.0, 13.0, 51.0],
+                    [0.5, 2.0, 0.0, 0.0],
+                    [-0.5, -2.0, 7.0, 11.0 / 3.0],
+                    [-1.5, -5.0, 13.0, 17.0 / 3.0],
+                    [0.0, 0.0, 13.0, 17.0 / 3.0],
                 ]
             ]
         ],
@@ -289,3 +289,63 @@ def test_tp9_boundary_system_is_batched():
     )
     assert system.matrix.shape == (2, 3, 4, 4)
     assert system.rhs.shape == (2, 3, 4)
+
+
+def test_absorption_only_flux_matches_the_discrete_ordinate_reference():
+    """First derived-value parity gate required by CUDA_BACKEND_STRATEGY.md."""
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        build_tp9_boundary_system,
+        extract_tp9_fluxes,
+        gaussian_quadrature,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_reduced_eigenproblem,
+        solve_tp9_boundary_system,
+    )
+
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    quadrature = gaussian_quadrature(4, device="cpu")
+    values, vectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(optics, quadrature, nstr=4)
+    )
+    grid = prepare_output_grid(
+        torch.tensor([0.0, 1.0], dtype=torch.float64),
+        atmosphere,
+        optics,
+        deltam=False,
+    )
+    fisot = torch.full((1, 1), 1.0 / torch.pi, dtype=torch.float64)
+    constants = solve_tp9_boundary_system(
+        build_tp9_boundary_system(vectors, values, optics, fisot)
+    )
+    fluxes = extract_tp9_fluxes(
+        vectors, values, optics, grid, quadrature, constants
+    )
+    mu = quadrature.cmu[:2]
+    weight = quadrature.cwt[:2]
+    expected_downward = torch.stack(
+        (
+            torch.tensor(1.0, dtype=torch.float64),
+            2.0 * torch.sum(weight * mu * torch.exp(-1.0 / mu)),
+        )
+    )
+    assert torch.allclose(
+        fluxes[0, 0, :, 0],
+        torch.zeros(2, dtype=torch.float64),
+        atol=1e-14,
+        rtol=0,
+    )
+    assert torch.allclose(
+        fluxes[0, 0, :, 1], expected_downward, atol=1e-13, rtol=0
+    )
+    # C-DISORT gives the same bottom flux for this four-stream case.
+    assert torch.allclose(
+        fluxes[0, 0, 1, 1],
+        torch.tensor(0.22380103757909353, dtype=torch.float64),
+        atol=1e-10,
+        rtol=0,
+    )
