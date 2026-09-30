@@ -1108,3 +1108,61 @@ def test_tensor_tp2_tp3_flux_cases_match_cdisort_fixtures(device):
             atol=fixture["atol"],
             rtol=fixture["rtol"],
         ), case["label"]
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_general_source_matches_cdisort_reference(device):
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    nstr = 4
+    prop = torch.zeros((1, 1, 1, 2 + nstr), dtype=torch.float64, device=device)
+    prop[..., 0] = 0.2
+    prop[..., 1] = 0.5
+    source = torch.ones(
+        (1, 1, nstr, 1, nstr), dtype=torch.float64, device=device
+    )
+    zero = torch.zeros((1, 1), dtype=torch.float64, device=device)
+    result = solve_tp9_flux(
+        prop,
+        torch.tensor([0.0, 0.2], dtype=torch.float64, device=device),
+        zero,
+        nstr=nstr,
+        nmom=nstr,
+        general_source_computational=source,
+    )
+    expected = torch.tensor(
+        [[1.0891838249147526, 0.0], [0.0, 1.0891838249147526]],
+        dtype=torch.float64,
+    )
+    assert torch.allclose(result[0, 0].cpu(), expected, atol=1e-12, rtol=1e-12)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_zero_general_source_recovers_no_source_flux(device):
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    nstr = 4
+    prop = torch.zeros((1, 1, 1, 2 + nstr), dtype=torch.float64, device=device)
+    prop[..., 0] = 0.2
+    prop[..., 1] = 0.5
+    zero = torch.zeros((1, 1), dtype=torch.float64, device=device)
+    common = {
+        "nstr": nstr,
+        "nmom": nstr,
+    }
+    plain = solve_tp9_flux(
+        prop,
+        torch.tensor([0.0, 0.2], dtype=torch.float64, device=device),
+        zero,
+        **common,
+    )
+    sourced = solve_tp9_flux(
+        prop,
+        torch.tensor([0.0, 0.2], dtype=torch.float64, device=device),
+        zero,
+        general_source_computational=torch.zeros(
+            (1, 1, nstr, 1, nstr), dtype=torch.float64, device=device
+        ),
+        **common,
+    )
+    assert torch.allclose(sourced, plain, atol=1e-14, rtol=1e-12)

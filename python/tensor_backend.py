@@ -374,6 +374,7 @@ def build_tp9_boundary_system(
     optics: TensorLayerOptics,
     fisot: torch.Tensor,
     beam_source: torch.Tensor | None = None,
+    general_source: torch.Tensor | None = None,
     umu0: torch.Tensor | None = None,
     thermal0: torch.Tensor | None = None,
     thermal1: torch.Tensor | None = None,
@@ -526,6 +527,13 @@ def build_tp9_boundary_system(
             rhs[..., -nn:] += reflected_beam.unsqueeze(-1)
     else:
         expbea = None
+    if general_source is not None:
+        if general_source.shape != (*eigenvectors.shape[:-2], nstr):
+            raise ValueError(
+                "general_source is incompatible with eigenvectors"
+            )
+        rhs[..., :nn] -= general_source[..., 0, :nn].flip(dims=(-1,))
+        rhs[..., -nn:] -= general_source[..., -1, nn:]
 
     for layer in range(nlyr - 1):
         row = nn + layer * nstr
@@ -559,6 +567,11 @@ def build_tp9_boundary_system(
                 - thermal0[..., layer, :]
                 + (thermal1[..., layer + 1, :] - thermal1[..., layer, :])
                 * optics.taucpr[..., layer].unsqueeze(-1)
+            )
+        if general_source is not None:
+            rhs[..., row : row + nstr] += (
+                general_source[..., layer + 1, :]
+                - general_source[..., layer, :]
             )
 
     bottom_row = nrow - nn
@@ -604,6 +617,7 @@ def extract_tp9_fluxes(
     fbeam: torch.Tensor | None = None,
     thermal0: torch.Tensor | None = None,
     thermal1: torch.Tensor | None = None,
+    general_source: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Extract homogeneous TP9 diffuse fluxes at the requested optical depths.
 
@@ -676,6 +690,14 @@ def extract_tp9_fluxes(
             + thermal_at_grid0
             + thermal_at_grid1 * grid.utaupr.unsqueeze(-1)
         )
+    if general_source is not None:
+        if general_source.shape != (*eigenvectors.shape[:-2], nstr):
+            raise ValueError(
+                "general_source is incompatible with eigenvectors"
+            )
+        intensity = intensity + torch.gather(
+            general_source, -2, layer[..., None].expand(*layer.shape, nstr)
+        )
     direct = None
     if any(value is not None for value in (beam_source, umu0, fbeam)):
         if beam_source is None or umu0 is None or fbeam is None:
@@ -734,6 +756,7 @@ def solve_tp9_flux(
     top_temperature: torch.Tensor | None = None,
     top_emissivity: torch.Tensor | None = None,
     surface_albedo: torch.Tensor | None = None,
+    general_source_computational: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Run the connected pure-PyTorch TP9a flux subset end to end.
 
@@ -758,6 +781,13 @@ def solve_tp9_flux(
         None
         if umu0 is None or fbeam is None
         else build_tp9_beam_source(optics, quadrature, umu0, fbeam, nstr=nstr)
+    )
+    general_source = (
+        None
+        if general_source_computational is None
+        else build_tp9_general_source(
+            optics, quadrature, general_source_computational, nstr=nstr
+        )
     )
     if surface_albedo is not None:
         if surface_albedo.shape != prop.shape[:2]:
@@ -842,6 +872,7 @@ def solve_tp9_flux(
             optics,
             fisot,
             beam_source,
+            general_source,
             umu0,
             thermal0,
             thermal1,
@@ -864,6 +895,7 @@ def solve_tp9_flux(
         fbeam,
         thermal0,
         thermal1,
+        general_source,
     )
 
 
@@ -933,6 +965,62 @@ def build_tp9_beam_source(
         / (4.0 * torch.pi)
     )
     solution = torch.linalg.solve(system, source.unsqueeze(-1)).squeeze(-1)
+    return torch.cat(
+        (solution[..., nn:].flip(dims=(-1,)), solution[..., :nn]), dim=-1
+    )
+
+
+@timed(name="tensor_backend.build_tp9_general_source")
+def build_tp9_general_source(
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    computational: torch.Tensor,
+    *,
+    nstr: int,
+) -> torch.Tensor:
+    """Build C-DISORT's Fourier-zero, layer-constant general source.
+
+    ``computational`` preserves ``DisortOptions.general_source``'s shape:
+    ``(nwave, ncol, nstr, nlyr, nstr)``. The tensor flux path consumes only
+    Fourier order zero and quadrature-angle sources; user-angle sources belong
+    to the future radiance path.
+    """
+    expected = (
+        *optics.dtaucpr.shape[:2],
+        nstr,
+        optics.dtaucpr.shape[-1],
+        nstr,
+    )
+    if computational.shape != expected:
+        raise ValueError("computational general source has incompatible shape")
+    if (
+        computational.dtype != optics.dtaucpr.dtype
+        or computational.device != optics.dtaucpr.device
+    ):
+        raise ValueError(
+            "computational general source must share optics dtype and device"
+        )
+    nn = nstr // 2
+    mu = quadrature.cmu
+    ylm = torch.empty((nstr, nstr), dtype=mu.dtype, device=mu.device)
+    ylm[0] = 1.0
+    ylm[1] = mu
+    for degree in range(2, nstr):
+        ylm[degree] = (
+            (2 * degree - 1) * mu * ylm[degree - 1]
+            - (degree - 1) * ylm[degree - 2]
+        ) / degree
+    cc = 0.5 * torch.einsum(
+        "...l,li,lj,j->...ij", optics.gl, ylm, ylm, quadrature.cwt
+    )
+    system = -cc
+    diagonal = torch.arange(nstr, device=mu.device)
+    system[..., diagonal, diagonal] += 1.0
+    source = computational[..., 0, :, :]
+    rhs = torch.cat(
+        (source[..., nn:], source[..., :nn].flip(dims=(-1,))), dim=-1
+    )
+    solution = torch.linalg.solve(system, rhs.unsqueeze(-1)).squeeze(-1)
     return torch.cat(
         (solution[..., nn:].flip(dims=(-1,)), solution[..., :nn]), dim=-1
     )

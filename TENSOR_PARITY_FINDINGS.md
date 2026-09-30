@@ -96,11 +96,10 @@ moments, delta-M scaling, and conservative transport.
 1. Extend the flux fixture set to the remaining supported reference cases,
    preserving explicit CPU/CUDA parity and source decomposition where it helps
    isolate a defect.
-2. Add tensor support for general source arrays, then establish a stored
-   nonzero reference before any performance work uses that path.
-3. Add tensor radiance/Fourier-output capability and non-Lambertian surface
-   coupling only after their public C-backend contracts and references are
-   selected.
+2. Add tensor radiance/Fourier-output capability, including user-angle general
+   source arrays, before exposing those intensity-oriented inputs.
+3. Add Hapke surface coupling only after its fixed-parameter C-backend
+   reference is selected; RPV, CAM, and AMB are explicitly deferred.
 4. Establish the representative 100-layer / 1000-channel tensor workload,
    then begin the end-to-end timing and CUDA optimization baseline.
 
@@ -132,6 +131,10 @@ float64 parity gates pass. It is not a second solver rewrite.
 - The trace now also captures `PYDISORT_TRACE_CBAND`, allowing the C band
   storage to be decoded as a dense reference without further speculative
   ordering changes.
+- The tensor flux path now supports the Fourier-zero computational general
+  source array in C-DISORT's `(nwave, ncol, nstr, nlyr, nstr)` layout. Its
+  zero-source reduction and the C-DISORT one-layer nonzero reference pass on
+  CPU and CUDA at `1e-12`; user-angle sources remain deferred with radiance.
 - The thermal trace shows all six C `ZPLK0` and `ZPLK1` vectors match the
   tensor source arrays to float64 rounding. Its `c_solve0` RHS then exposed
   the missing five thermal continuity terms in the tensor system. Adding the
