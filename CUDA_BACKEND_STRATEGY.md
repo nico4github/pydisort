@@ -164,7 +164,7 @@ size; the remaining boundary and flux stages carry most of the work.
 | 11 | C-DISORT TP9 boundary block and RHS assembly | Complete |
 | 12 | Beam/source terms and constants of integration | Complete for plane-parallel diffuse, direct beam, finite-band thermal layer/surface/top sources, Lambertian direct-beam/thermal reflection, and Fourier-zero computational general source; user-angle general source remains coupled to future radiance output |
 | 13 | Flux extraction on the user output grid | Complete for the supported plane-parallel flux path |
-| 14 | Complete tensor flow C-DISORT/Fortran parity tests | Complete for TP9a/TP9b/TP9c, Test Problems 1--3, 6a--6c, direct beam, Lambertian reflection, and finite-band thermal CPU/CUDA fixtures |
+| 14 | Complete tensor flow C-DISORT/Fortran parity tests | Complete for TP9a/TP9b/TP9c, Test Problems 1--4, 6a--6c, direct beam, Lambertian reflection, and finite-band thermal CPU/CUDA fixtures |
 | 15 | CPU/H100 end-to-end timing, incremental log, and optimization baseline | Pending after a representative 100-layer / 1000-channel tensor workload is established |
 
 ## Earliest-reference rule
