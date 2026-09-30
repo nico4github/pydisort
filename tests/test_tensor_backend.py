@@ -202,3 +202,25 @@ def test_layer_continuity_blocks_scale_eigenvector_columns():
         rtol=1e-14,
         atol=0.0,
     )
+
+
+def test_block_tridiagonal_solver_matches_dense_batched_system():
+    from pydisort.tensor_backend import solve_block_tridiagonal
+
+    lower = torch.tensor([[[[1.0, 2.0], [0.0, 1.0]]]], dtype=torch.float64)
+    diagonal = torch.tensor(
+        [[[[4.0, 1.0], [2.0, 5.0]], [[6.0, 2.0], [1.0, 7.0]]]],
+        dtype=torch.float64,
+    )
+    upper = torch.tensor([[[[2.0, 0.0], [3.0, 1.0]]]], dtype=torch.float64)
+    rhs = torch.tensor([[[6.0, 5.0], [7.0, 4.0]]], dtype=torch.float64)
+    solution = solve_block_tridiagonal(lower, diagonal, upper, rhs)
+    dense = torch.cat(
+        (
+            torch.cat((diagonal[..., 0, :, :], upper[..., 0, :, :]), dim=-1),
+            torch.cat((lower[..., 0, :, :], diagonal[..., 1, :, :]), dim=-1),
+        ),
+        dim=-2,
+    )
+    expected = torch.linalg.solve(dense, rhs.reshape(1, 4, 1)).reshape(1, 2, 2)
+    assert torch.allclose(solution, expected, atol=1e-14, rtol=0)

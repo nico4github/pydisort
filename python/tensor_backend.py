@@ -290,3 +290,57 @@ def build_layer_continuity_blocks(
     upper = eigenvectors[..., :nn] * scaled.unsqueeze(-2)
     lower = eigenvectors[..., nn:] * scaled.unsqueeze(-2)
     return upper, lower
+
+
+@timed(name="tensor_backend.solve_block_tridiagonal")
+def solve_block_tridiagonal(
+    lower: torch.Tensor,
+    diagonal: torch.Tensor,
+    upper: torch.Tensor,
+    rhs: torch.Tensor,
+) -> torch.Tensor:
+    """Solve batched block-tridiagonal systems with a block Thomas sweep.
+
+    The final three axes are ``(nblock, block_size, block_size)`` for the
+    matrices and ``(nblock, block_size)`` for the right-hand side.  Leading
+    axes batch independent wavelength/column systems.
+    """
+    if diagonal.ndim < 3 or rhs.shape != diagonal.shape[:-1]:
+        raise ValueError(
+            "rhs must match diagonal's batch, block, and row axes"
+        )
+    nblock = diagonal.shape[-3]
+    if lower.shape != (*diagonal.shape[:-3], nblock - 1, *diagonal.shape[-2:]):
+        raise ValueError("lower has incompatible block-tridiagonal shape")
+    if upper.shape != lower.shape:
+        raise ValueError("upper has incompatible block-tridiagonal shape")
+
+    reduced_diagonal = [diagonal[..., 0, :, :]]
+    reduced_rhs = [rhs[..., 0, :]]
+    for block in range(1, nblock):
+        factor = torch.linalg.solve(
+            reduced_diagonal[-1].transpose(-1, -2),
+            lower[..., block - 1, :, :].transpose(-1, -2),
+        ).transpose(-1, -2)
+        reduced_diagonal.append(
+            diagonal[..., block, :, :] - factor @ upper[..., block - 1, :, :]
+        )
+        reduced_rhs.append(
+            rhs[..., block, :]
+            - (factor @ reduced_rhs[-1].unsqueeze(-1)).squeeze(-1)
+        )
+    solution = [
+        torch.linalg.solve(
+            reduced_diagonal[-1], reduced_rhs[-1].unsqueeze(-1)
+        ).squeeze(-1)
+    ]
+    for block in range(nblock - 2, -1, -1):
+        value = reduced_rhs[block] - (
+            upper[..., block, :, :] @ solution[-1].unsqueeze(-1)
+        ).squeeze(-1)
+        solution.append(
+            torch.linalg.solve(
+                reduced_diagonal[block], value.unsqueeze(-1)
+            ).squeeze(-1)
+        )
+    return torch.stack(tuple(reversed(solution)), dim=-2)
