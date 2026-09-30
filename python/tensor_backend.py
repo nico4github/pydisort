@@ -344,3 +344,107 @@ def solve_block_tridiagonal(
             ).squeeze(-1)
         )
     return torch.stack(tuple(reversed(solution)), dim=-2)
+
+
+@dataclass(frozen=True)
+class TensorBoundarySystem:
+    """Dense batched TP9 boundary system for homogeneous integration constants."""
+
+    matrix: torch.Tensor
+    rhs: torch.Tensor
+
+
+@timed(name="tensor_backend.build_tp9_boundary_system")
+def build_tp9_boundary_system(
+    eigenvectors: torch.Tensor,
+    eigenvalues: torch.Tensor,
+    optics: TensorLayerOptics,
+    fisot: torch.Tensor,
+) -> TensorBoundarySystem:
+    """Assemble TP9's plane-parallel, no-beam, black-surface system.
+
+    This is the azimuth-independent ``fbeam == 0`` branch of ``c_set_matrix``
+    and ``c_solve0`` with no thermal or general source. TP9's sole source is
+    isotropic top illumination, so only the first ``nstr / 2`` RHS entries are
+    nonzero. Beam and reflecting-surface terms are added in a later stage.
+    """
+    if (
+        eigenvectors.ndim != 5
+        or eigenvectors.shape[-2] != eigenvectors.shape[-1]
+    ):
+        raise ValueError(
+            "eigenvectors must have shape (nwave, ncol, nlyr, nstr, nstr)"
+        )
+    nstr = eigenvectors.shape[-1]
+    if nstr < 2 or nstr % 2:
+        raise ValueError("eigenvectors require a positive even stream count")
+    if eigenvalues.shape != (*eigenvectors.shape[:-2], nstr // 2):
+        raise ValueError("eigenvalues are incompatible with eigenvectors")
+    if optics.dtaucpr.shape != eigenvectors.shape[:-2]:
+        raise ValueError(
+            "optics and eigenvectors have incompatible layer shapes"
+        )
+    if fisot.shape != eigenvectors.shape[:2]:
+        raise ValueError("fisot must have shape (nwave, ncol)")
+    if (
+        fisot.dtype != eigenvectors.dtype
+        or fisot.device != eigenvectors.device
+    ):
+        raise ValueError("fisot must share eigenvector dtype and device")
+
+    *batch, nlyr, _, _ = eigenvectors.shape
+    nn = nstr // 2
+    nrow = nlyr * nstr
+    matrix = torch.zeros(
+        (*batch, nrow, nrow),
+        dtype=eigenvectors.dtype,
+        device=eigenvectors.device,
+    )
+    rhs = torch.zeros(
+        (*batch, nrow), dtype=eigenvectors.dtype, device=eigenvectors.device
+    )
+    factors = torch.exp(eigenvalues * optics.dtaucpr.unsqueeze(-1))
+
+    top = eigenvectors[..., 0, :nn, :].flip(dims=(-2,))
+    matrix[..., :nn, :nn] = top[..., :nn] * factors[..., 0, :].unsqueeze(-2)
+    matrix[..., :nn, nn:nstr] = top[..., nn:]
+    rhs[..., :nn] = fisot.unsqueeze(-1)
+
+    for layer in range(nlyr - 1):
+        row = nn + layer * nstr
+        left = slice(layer * nstr, (layer + 1) * nstr)
+        right = slice((layer + 1) * nstr, (layer + 2) * nstr)
+        lower_gc = eigenvectors[..., layer, :, :]
+        upper_gc = eigenvectors[..., layer + 1, :, :]
+        matrix[
+            ..., row : row + nstr, left.start : left.start + nn
+        ] = -lower_gc[..., :nn] * factors[..., layer, :].unsqueeze(-2)
+        matrix[..., row : row + nstr, left.start + nn : left.stop] = -lower_gc[
+            ..., nn:
+        ]
+        matrix[
+            ..., row : row + nstr, right.start : right.start + nn
+        ] = upper_gc[..., :nn]
+        matrix[
+            ..., row : row + nstr, right.start + nn : right.stop
+        ] = upper_gc[..., nn:] * factors[..., layer + 1, :].flip(
+            dims=(-1,)
+        ).unsqueeze(
+            -2
+        )
+
+    bottom_row = nrow - nn
+    bottom = eigenvectors[..., -1, nn:, :]
+    matrix[..., bottom_row:, -nstr:-nn] = bottom[..., :nn]
+    matrix[..., bottom_row:, -nn:] = bottom[..., nn:] * factors[
+        ..., -1, :
+    ].flip(dims=(-1,)).unsqueeze(-2)
+    return TensorBoundarySystem(matrix=matrix, rhs=rhs)
+
+
+@timed(name="tensor_backend.solve_tp9_boundary_system")
+def solve_tp9_boundary_system(system: TensorBoundarySystem) -> torch.Tensor:
+    """Solve TP9 integration constants in C-DISORT layer/mode ordering."""
+    return torch.linalg.solve(system.matrix, system.rhs.unsqueeze(-1)).squeeze(
+        -1
+    )

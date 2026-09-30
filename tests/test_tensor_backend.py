@@ -224,3 +224,68 @@ def test_block_tridiagonal_solver_matches_dense_batched_system():
     )
     expected = torch.linalg.solve(dense, rhs.reshape(1, 4, 1)).reshape(1, 2, 2)
     assert torch.allclose(solution, expected, atol=1e-14, rtol=0)
+
+
+def test_tp9_boundary_system_matches_explicit_c_set_matrix_equations():
+    from pydisort.tensor_backend import (
+        TensorLayerOptics,
+        build_tp9_boundary_system,
+        solve_tp9_boundary_system,
+    )
+
+    vectors = torch.tensor(
+        [[[[[1.0, 2.0], [3.0, 5.0]], [[7.0, 11.0], [13.0, 17.0]]]]],
+        dtype=torch.float64,
+    )
+    values = torch.log(torch.tensor([[[[2.0], [3.0]]]], dtype=torch.float64))
+    optics = TensorLayerOptics(
+        *(torch.ones((1, 1, 2), dtype=torch.float64) for _ in range(5)),
+        torch.ones((1, 1, 2, 2), dtype=torch.float64),
+    )
+    system = build_tp9_boundary_system(
+        vectors, values, optics, torch.tensor([[4.0]], dtype=torch.float64)
+    )
+    expected = torch.tensor(
+        [
+            [
+                [
+                    [2.0, 5.0, 0.0, 0.0],
+                    [-2.0, -3.0, 7.0, 11.0],
+                    [-10.0, -5.0, 39.0, 17.0],
+                    [0.0, 0.0, 13.0, 51.0],
+                ]
+            ]
+        ],
+        dtype=torch.float64,
+    )
+    assert torch.equal(system.matrix, expected)
+    assert torch.equal(
+        system.rhs, torch.tensor([[[4.0, 0.0, 0.0, 0.0]]], dtype=torch.float64)
+    )
+    solution = solve_tp9_boundary_system(system)
+    assert torch.allclose(
+        system.matrix @ solution.unsqueeze(-1),
+        system.rhs.unsqueeze(-1),
+        atol=1e-14,
+        rtol=0,
+    )
+
+
+def test_tp9_boundary_system_is_batched():
+    from pydisort.tensor_backend import (
+        TensorLayerOptics,
+        build_tp9_boundary_system,
+    )
+
+    vectors = torch.eye(4, dtype=torch.float64).reshape(1, 1, 1, 4, 4)
+    vectors = vectors.expand(2, 3, -1, -1, -1).clone()
+    values = torch.ones((2, 3, 1, 2), dtype=torch.float64)
+    optics = TensorLayerOptics(
+        *(torch.ones((2, 3, 1), dtype=torch.float64) for _ in range(5)),
+        torch.ones((2, 3, 1, 4), dtype=torch.float64),
+    )
+    system = build_tp9_boundary_system(
+        vectors, values, optics, torch.ones((2, 3), dtype=torch.float64)
+    )
+    assert system.matrix.shape == (2, 3, 4, 4)
+    assert system.rhs.shape == (2, 3, 4)
