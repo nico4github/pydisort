@@ -1,6 +1,7 @@
 """Parity tests for the first vectorized C-DISORT state-preparation stage."""
 
 import json
+import math
 import sys
 import types
 from pathlib import Path
@@ -1376,3 +1377,29 @@ def test_tensor_quadrature_intensity_integrates_to_homogeneous_flux(device):
         atol=reference["atol"],
         rtol=reference["rtol"],
     )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_top_boundary_user_intensity(device):
+    from pydisort.tensor_backend import (
+        TensorOutputGrid,
+        top_boundary_user_intensity,
+    )
+
+    grid = TensorOutputGrid(
+        layru=torch.ones((1, 1, 2), dtype=torch.long, device=device),
+        utaupr=torch.tensor(
+            [[[0.0, 0.7]]], dtype=torch.float64, device=device
+        ),
+    )
+    result = top_boundary_user_intensity(
+        grid,
+        torch.tensor([-0.5, 0.5], dtype=torch.float64, device=device),
+        torch.full((1, 1), 1.0 / torch.pi, dtype=torch.float64, device=device),
+    )
+    expected = torch.tensor(
+        [[[[1.0 / torch.pi, 0.0], [math.exp(-1.4) / torch.pi, 0.0]]]],
+        dtype=torch.float64,
+        device=device,
+    )
+    assert torch.allclose(result, expected, atol=1e-14, rtol=1e-13)

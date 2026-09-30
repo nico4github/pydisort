@@ -604,6 +604,68 @@ def solve_tp9_boundary_system(system: TensorBoundarySystem) -> torch.Tensor:
     )
 
 
+def _legendre_m0(mu: torch.Tensor, nstr: int) -> torch.Tensor:
+    values = [torch.ones_like(mu), mu]
+    for ell in range(2, nstr):
+        values.append(
+            ((2 * ell - 1) * mu * values[-1] - (ell - 1) * values[-2]) / ell
+        )
+    return torch.stack(values[:nstr], dim=-1)
+
+
+@timed(name="tensor_backend.interpolate_tp9_eigenvectors_m0")
+def interpolate_tp9_eigenvectors_m0(
+    eigenvectors: torch.Tensor,
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    user_mu: torch.Tensor,
+) -> torch.Tensor:
+    """C-DISORT c_interp_eigenvec for m=0 user polar angles."""
+    nstr = eigenvectors.shape[-1]
+    nn = nstr // 2
+    evecc = torch.empty_like(eigenvectors)
+    for i in range(nn):
+        for j in range(nn):
+            evecc[..., i, j] = eigenvectors[..., nn + i, nn + j]
+            evecc[..., nn + i, j] = eigenvectors[..., nn - i - 1, nn + j]
+            evecc[..., i, nn + j] = eigenvectors[..., nn + i, nn - j - 1]
+            evecc[..., nn + i, nn + j] = eigenvectors[
+                ..., nn - i - 1, nn - j - 1
+            ]
+    inner = torch.einsum(
+        "j,jl,...ji->...il",
+        quadrature.cwt,
+        _legendre_m0(quadrature.cmu, nstr),
+        evecc,
+    )
+    raw = torch.einsum(
+        "...il,ul->...ui",
+        0.5 * inner * optics.gl.unsqueeze(-2),
+        _legendre_m0(user_mu, nstr),
+    )
+    return torch.cat((raw[..., :, nn:].flip(-1), raw[..., :, :nn]), dim=-1)
+
+
+@timed(name="tensor_backend.top_boundary_user_intensity")
+def top_boundary_user_intensity(
+    grid: TensorOutputGrid, user_mu: torch.Tensor, fisot: torch.Tensor
+) -> torch.Tensor:
+    """C-DISORT's attenuated diffuse top boundary term for m=0 radiance."""
+    if fisot.shape != grid.utaupr.shape[:2]:
+        raise ValueError("fisot and output grid are incompatible")
+    downward = user_mu < 0
+    result = torch.zeros(
+        (*grid.utaupr.shape, user_mu.numel()),
+        dtype=fisot.dtype,
+        device=fisot.device,
+    )
+    if downward.any():
+        result[..., downward] = fisot[..., None, None] * torch.exp(
+            grid.utaupr[..., None] / user_mu[downward]
+        )
+    return result
+
+
 @timed(name="tensor_backend.extract_tp9_quadrature_intensity")
 def extract_tp9_quadrature_intensity(
     eigenvectors: torch.Tensor,
