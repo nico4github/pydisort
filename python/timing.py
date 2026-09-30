@@ -13,7 +13,7 @@ from collections import defaultdict
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
@@ -47,6 +47,11 @@ def _cuda_device(value: object) -> torch.device | None:
     """Find the first CUDA tensor device in nested call arguments."""
     if isinstance(value, torch.Tensor):
         return value.device if value.is_cuda else None
+    if is_dataclass(value) and not isinstance(value, type):
+        for field in fields(value):
+            device = _cuda_device(getattr(value, field.name))
+            if device is not None:
+                return device
     if isinstance(value, Mapping):
         for item in value.values():
             device = _cuda_device(item)
