@@ -7,9 +7,10 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
 
 ## Current state
 
-- The focused tensor suite has 48 passing tests, including required CPU and
-  CUDA parity for full Problem 9c, its source decompositions, and all six
-  published Test Problem 1 flux configurations.
+- The focused tensor suite has 50 passing tests, including required CPU and
+  CUDA parity for full Problem 9c, all six published Test Problem 1 flux
+  configurations, all four Rayleigh Test Problem 2 cases, and both high-order
+  Henyey-Greenstein Test Problem 3 cases.
 - The source inputs and C-DISORT outputs are stored in
   `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
 - The diffuse-only six-layer Problem 9c component matches native C-DISORT to
@@ -72,6 +73,11 @@ terms; it now accumulates both source contributions as C-DISORT does.
 All six published Test Problem 1 flux configurations are now stored as native
 float64 fixtures and pass on CPU and CUDA. They cover thin/thick slabs, beam
 and diffuse illumination, and conservative and near-conservative scattering.
+
+The four Rayleigh Test Problem 2 cases and two high-order Henyey-Greenstein
+Test Problem 3 cases are also stored and pass on CPU and CUDA. They establish
+that the reconstructed angular scattering path covers non-isotropic phase
+moments, delta-M scaling, and conservative transport.
 
 ## Rejected hypotheses
 
