@@ -1245,3 +1245,51 @@ def test_tensor_tp4_haze_flux_cases_match_cdisort_fixtures(device):
             atol=fixture["atol"],
             rtol=fixture["rtol"],
         ), case["label"]
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_tp5_cloud_flux_cases_match_cdisort_fixtures(device):
+    """Keep 48-stream Cloud C.1 beam fluxes aligned with native C-DISORT."""
+    from pydisort.tensor_backend import solve_tp9_flux
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_tp5_flux_reference.json"
+        ).read_text()
+    )
+    for case in fixture["cases"]:
+        prop = torch.tensor(
+            [*case["dtauc"], *case["ssalb"], *case["moments"]],
+            dtype=torch.float64,
+            device=device,
+        ).reshape(1, 1, 1, -1)
+        fluxes = solve_tp9_flux(
+            prop,
+            torch.tensor(case["user_tau"], dtype=torch.float64, device=device),
+            torch.full(
+                (1, 1), case["fisot"], dtype=torch.float64, device=device
+            ),
+            nstr=case["nstr"],
+            nmom=case["nmom"],
+            deltam=True,
+            umu0=torch.full(
+                (1, 1), case["umu0"], dtype=torch.float64, device=device
+            ),
+            fbeam=torch.full(
+                (1, 1), case["fbeam"], dtype=torch.float64, device=device
+            ),
+            surface_albedo=torch.full(
+                (1, 1),
+                case["surface_albedo"],
+                dtype=torch.float64,
+                device=device,
+            ),
+        )
+        assert torch.allclose(
+            fluxes[0, 0].cpu(),
+            torch.tensor(case["flux"], dtype=torch.float64),
+            atol=fixture["atol"],
+            rtol=fixture["rtol"],
+        ), case["label"]

@@ -11,7 +11,7 @@ plan and milestone status remain in `CUDA_BACKEND_STRATEGY.md`.
   CUDA parity for full Problem 9c, all six published Test Problem 1 flux
   configurations, all four Rayleigh Test Problem 2 cases, both high-order
   Henyey-Greenstein Test Problem 3 cases, and the two azimuth-independent
-  Haze-L Test Problem 4 beam cases.
+  Haze-L Test Problem 4 beam cases, and both 48-stream Cloud C.1 Test Problem 5 beam cases.
 - The source inputs and C-DISORT outputs are stored in
   `tests/fixtures/tensor_tp9c_source_decomposition_reference.json`.
 - The diffuse-only six-layer Problem 9c component matches native C-DISORT to
@@ -84,6 +84,11 @@ The two azimuth-independent Test Problem 4 Haze-L cases now provide 32-stream,
 high-order tabulated phase-moment beam coverage. Their self-contained native
 C-DISORT fixtures pass on CPU and CUDA within 2e-6; the observed independent
 solver difference is below 9.4e-7.
+
+The two azimuth-independent Test Problem 5 Cloud C.1 cases extend that gate
+to 48 streams and 299 tabulated phase moments through a 64-optical-depth cloud.
+Their native fixtures pass on CPU and CUDA at 1e-8; the observed maximum
+difference is below 3.2e-10.
 
 ## Rejected hypotheses
 
