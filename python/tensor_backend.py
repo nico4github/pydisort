@@ -611,8 +611,13 @@ def extract_tp9_quadrature_intensity(
     optics: TensorLayerOptics,
     grid: TensorOutputGrid,
     constants: torch.Tensor,
+    beam_source: torch.Tensor | None = None,
+    umu0: torch.Tensor | None = None,
+    thermal0: torch.Tensor | None = None,
+    thermal1: torch.Tensor | None = None,
+    general_source: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Return the homogeneous m=0 intensity at quadrature directions.
+    """Return the m=0 intensity at quadrature directions.
 
     This is the first radiance reconstruction increment.  It retains the
     device-resident layer/mode convention used by flux extraction and returns
@@ -663,7 +668,27 @@ def extract_tp9_quadrature_intensity(
         ),
         dim=-1,
     )
-    return (gc @ (layer_constants * factors).unsqueeze(-1)).squeeze(-1)
+    intensity = (gc @ (layer_constants * factors).unsqueeze(-1)).squeeze(-1)
+    if beam_source is not None and umu0 is not None:
+        intensity = intensity + torch.gather(
+            beam_source, -2, layer[..., None].expand(*layer.shape, nstr)
+        ) * torch.exp(-grid.utaupr / umu0.unsqueeze(-1)).unsqueeze(-1)
+    if thermal0 is not None and thermal1 is not None:
+        intensity = (
+            intensity
+            + torch.gather(
+                thermal0, -2, layer[..., None].expand(*layer.shape, nstr)
+            )
+            + torch.gather(
+                thermal1, -2, layer[..., None].expand(*layer.shape, nstr)
+            )
+            * grid.utaupr.unsqueeze(-1)
+        )
+    if general_source is not None:
+        intensity = intensity + torch.gather(
+            general_source, -2, layer[..., None].expand(*layer.shape, nstr)
+        )
+    return intensity
 
 
 @timed(name="tensor_backend.extract_tp9_fluxes")
