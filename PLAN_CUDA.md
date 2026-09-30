@@ -280,6 +280,15 @@ experiment must change only the launch/workspace residency policy and retain the
 existing independent C-DISORT state contract. It needs CPU/CUDA agreement and
 the same TP9 event timing before and after the rebuild.
 
+
+The first launch-policy trial changed the scalar block from 32 to 16 threads
+to double the number of schedulable blocks. It immediately segfaulted in
+`tests/cuda/test_cuda_backend_selection.py`: the pmem workspace mapping depends
+on full-warp lane behavior. The source was reverted, a clean CUDA rebuild was
+completed, and that smoke test passed again. Do not retry sub-warp blocks; the
+next experiment must preserve 32-thread warp blocks and vary only a
+full-warp-safe residency or workspace policy.
+
 ### Phase 3 — optimize transfer and application integration
 
 Act only if `transfer_boundary` shows transfers dominate end-to-end time.
