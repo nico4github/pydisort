@@ -116,6 +116,8 @@ void run_disort_user_ray(void) {
         UTAU(3) = 0.45;
         UTAU(4) = 0.7;
         if (five_layer) {
+          UTAU(2) = 0.15;
+          UTAU(3) = 0.55;
           UTAU(4) = 1.05;
           UTAU(5) = 1.8;
           UTAU(6) = 2.4;

@@ -41,14 +41,15 @@ before the next source or Fourier feature is added.
 
 ## Current state
 
-Step 1 is complete in commit `2edbdde`. The accepted step-2 increments now
-cover exact one-layer and two-layer homogeneous m=0 ray integration with the
-attenuated diffuse top boundary, tested against native C-DISORT references on
-CPU and CUDA. The next step-2 evidence gate is a five-layer, nonuniform,
-anisotropic source-free fixture with both symmetric and asymmetric user angles.
-Its native baseline is emitted by the dedicated diagnostic driver, rather than
-a wrapper result. A retained native trace has located the current mismatch
-upstream of ray integration in the interpolated-eigenvector/solved-constant
-product. Compare `GC` and the boundary-system solution by layer, correct that
-mapping, and only then promote the five-layer fixture to a required CPU/CUDA
-pytest gate. Source and Fourier stages remain after this gate.
+Step 1 is complete in commit `2edbdde`. Step 2 is complete for
+source-free m=0 user rays: one-, two-, and five-layer native C-DISORT fixtures
+pass on CPU and CUDA. The five-layer gate uses nonuniform optical thicknesses,
+single-scattering albedos, Henyey-Greenstein moments, and both symmetric and
+asymmetric user angles. It also verifies the automatic delta-M selection used
+by C-DISORT when `PMOM(nstr)` is nonzero.
+
+The next capability is step 3: add m=0 user-angle particular sources one at a
+time, starting with a source-only beam fixture, then thermal, then general
+source. Each fixture must be emitted by a dedicated native diagnostic with its
+input contract stored alongside the values before a combined-source gate is
+introduced. Fourier m>0 work remains after those source gates.

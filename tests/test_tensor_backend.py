@@ -1477,8 +1477,15 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
     assert torch.allclose(actual, expected, atol=1e-4, rtol=1e-4)
 
 
+@pytest.mark.parametrize(
+    "fixture_name",
+    [
+        "tensor_user_ray_two_layer_reference.json",
+        "tensor_user_ray_five_layer_reference.json",
+    ],
+)
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_tensor_two_layer_user_ray_matches_cdisort(device):
+def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
     from pydisort.tensor_backend import (
         build_reduced_eigen_matrix,
         build_tp9_boundary_system,
@@ -1493,25 +1500,46 @@ def test_tensor_two_layer_user_ray_matches_cdisort(device):
     )
 
     fixture = json.loads(
-        (
-            Path(__file__).parent
-            / "fixtures"
-            / "tensor_user_ray_two_layer_reference.json"
-        ).read_text()
+        (Path(__file__).parent / "fixtures" / fixture_name).read_text()
     )
-    prop = torch.zeros((1, 1, 2, 6), dtype=torch.float64, device=device)
-    prop[..., 0] = torch.tensor([0.2, 0.5], dtype=torch.float64, device=device)
-    prop[..., 1] = torch.tensor([0.4, 0.7], dtype=torch.float64, device=device)
+    layers = fixture.get("layers")
+    if layers is None:
+        layers = [
+            {"dtau": dtau, "ssalb": ssalb, "gg": gg}
+            for dtau, ssalb, gg in zip(
+                fixture["dtau"], fixture["ssalb"], fixture["gg"]
+            )
+        ]
+    nlyr = len(layers)
+    prop = torch.zeros((1, 1, nlyr, 6), dtype=torch.float64, device=device)
+    prop[..., 0] = torch.tensor(
+        [layer["dtau"] for layer in layers], dtype=torch.float64, device=device
+    )
+    prop[..., 1] = torch.tensor(
+        [layer["ssalb"] for layer in layers],
+        dtype=torch.float64,
+        device=device,
+    )
+    if any("gg" in layer for layer in layers):
+        gg = torch.tensor(
+            [layer.get("gg", 0.0) for layer in layers],
+            dtype=torch.float64,
+            device=device,
+        )
+        prop[..., 2:] = gg.view(1, 1, nlyr, 1).pow(
+            torch.arange(1, 5, dtype=torch.float64, device=device)
+        )
     fisot = torch.full(
         (1, 1), fixture["fisot"], dtype=torch.float64, device=device
     )
     atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
-    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    deltam = bool(torch.any(atmosphere.pmom[..., 4] != 0.0))
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=deltam)
     grid = prepare_output_grid(
         torch.tensor(fixture["user_tau"], dtype=torch.float64, device=device),
         atmosphere,
         optics,
-        deltam=False,
+        deltam=deltam,
     )
     quadrature = gaussian_quadrature(4, device=device)
     values, vectors = solve_reduced_eigenproblem(

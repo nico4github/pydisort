@@ -45,16 +45,16 @@
       0.035520196064030986
     ],
     [
-      0.22796096812867972,
-      0.18483772350974093,
-      0.03950026911201572,
-      0.035169907308598654
+      0.24355996787591547,
+      0.20477073992594677,
+      0.04188180748499029,
+      0.03732382090598753
     ],
     [
-      0.16379858784494244,
-      0.11439409789755255,
-      0.030843151356845785,
-      0.027055944755521283
+      0.14378040147749166,
+      0.09606846444512082,
+      0.02844142634968564,
+      0.024637543100819267
     ],
     [
       0.09535358393534671,
@@ -74,5 +74,6 @@
       0.0,
       0.0
     ]
-  ]
+  ],
+  "provenance": "Native float64 C-DISORT output from the dedicated five-layer source-free m=0 user-angle diagnostic. The driver uses the declared physical output depths, isotropic top illumination, a black Lambertian lower boundary, and C-DISORT automatic delta-M selection."
 }
