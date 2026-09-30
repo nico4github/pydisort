@@ -375,6 +375,8 @@ def build_tp9_boundary_system(
     fisot: torch.Tensor,
     beam_source: torch.Tensor | None = None,
     umu0: torch.Tensor | None = None,
+    thermal0: torch.Tensor | None = None,
+    thermal1: torch.Tensor | None = None,
 ) -> TensorBoundarySystem:
     """Assemble TP9's plane-parallel, no-beam, black-surface system.
 
@@ -426,6 +428,17 @@ def build_tp9_boundary_system(
     ).unsqueeze(-2)
     matrix[..., :nn, nn:nstr] = top[..., nn:]
     rhs[..., :nn] = fisot.unsqueeze(-1)
+    if (thermal0 is None) != (thermal1 is None):
+        raise ValueError("thermal0 and thermal1 must be supplied together")
+    if thermal0 is not None and thermal1 is not None:
+        if thermal0.shape != (*eigenvectors.shape[:-2], nstr):
+            raise ValueError("thermal0 is incompatible with eigenvectors")
+        if thermal1.shape != thermal0.shape:
+            raise ValueError("thermal1 is incompatible with eigenvectors")
+        rhs[..., :nn] -= thermal0[..., 0, :nn].flip(dims=(-1,))
+        rhs[..., -nn:] -= thermal0[..., -1, nn:] + thermal1[
+            ..., -1, nn:
+        ] * optics.taucpr[..., -1].unsqueeze(-1)
     if (beam_source is None) != (umu0 is None):
         raise ValueError("beam_source and umu0 must be supplied together")
     if beam_source is not None and umu0 is not None:
@@ -492,6 +505,8 @@ def extract_tp9_fluxes(
     beam_source: torch.Tensor | None = None,
     umu0: torch.Tensor | None = None,
     fbeam: torch.Tensor | None = None,
+    thermal0: torch.Tensor | None = None,
+    thermal1: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Extract homogeneous TP9 diffuse fluxes at the requested optical depths.
 
@@ -548,6 +563,22 @@ def extract_tp9_fluxes(
         dim=-1,
     )
     intensity = (gc @ (layer_constants * factors).unsqueeze(-1)).squeeze(-1)
+    if (thermal0 is None) != (thermal1 is None):
+        raise ValueError("thermal0 and thermal1 must be supplied together")
+    if thermal0 is not None and thermal1 is not None:
+        if thermal0.shape != (*eigenvectors.shape[:-2], nstr):
+            raise ValueError("thermal0 is incompatible with eigenvectors")
+        thermal_at_grid0 = torch.gather(
+            thermal0, -2, layer[..., None].expand(*layer.shape, nstr)
+        )
+        thermal_at_grid1 = torch.gather(
+            thermal1, -2, layer[..., None].expand(*layer.shape, nstr)
+        )
+        intensity = (
+            intensity
+            + thermal_at_grid0
+            + thermal_at_grid1 * grid.utaupr.unsqueeze(-1)
+        )
     direct = None
     if any(value is not None for value in (beam_source, umu0, fbeam)):
         if beam_source is None or umu0 is None or fbeam is None:

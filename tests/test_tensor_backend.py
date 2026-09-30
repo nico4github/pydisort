@@ -532,3 +532,43 @@ def test_tp9_thermal_source_matches_nonscattering_c_upisot_solution():
     )
     assert torch.equal(z1[0, 0, 0], expected_z1)
     assert torch.allclose(z0[0, 0, 0], expected_z0, atol=1e-14, rtol=0)
+
+
+def test_thermal_particular_solution_contributes_to_user_fluxes():
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        extract_tp9_fluxes,
+        gaussian_quadrature,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_reduced_eigenproblem,
+    )
+
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 1.0
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=False)
+    quadrature = gaussian_quadrature(4, device="cpu")
+    values, vectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(optics, quadrature, nstr=4)
+    )
+    grid = prepare_output_grid(
+        torch.tensor([0.0, 1.0], dtype=torch.float64),
+        atmosphere,
+        optics,
+        deltam=False,
+    )
+    thermal0 = torch.full((1, 1, 1, 4), 2.0, dtype=torch.float64)
+    thermal1 = torch.zeros_like(thermal0)
+    fluxes = extract_tp9_fluxes(
+        vectors,
+        values,
+        optics,
+        grid,
+        quadrature,
+        torch.zeros((1, 1, 4), dtype=torch.float64),
+        thermal0=thermal0,
+        thermal1=thermal1,
+    )
+    expected = torch.full((2, 2), 2.0 * torch.pi, dtype=torch.float64)
+    assert torch.allclose(fluxes[0, 0], expected, atol=1e-14, rtol=0)
