@@ -63,6 +63,14 @@ DISPATCH_MACRO inline void c_interp_eigenvec(disort_state *ds,
     }
   }
 
+#ifndef __CUDA_ARCH__
+  if (mazim == 0 && getenv("PYDISORT_TRACE_INTERP") != NULL) {
+    fprintf(stderr, "PYDISORT_TRACE_GU layer=%d", lc);
+    for (iu = 1; iu <= ds->numu; iu++)
+      for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", GU(iu, iq, lc));
+    fprintf(stderr, "\n");
+  }
+#endif
   return;
 }
 

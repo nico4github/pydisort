@@ -16,3 +16,22 @@ index 098ad06..41d6d87 100644
   
    return;
  }
+diff --git a/cdisort213/interp.h b/cdisort213/interp.h
+index ab8f671..397985e 100644
+--- a/cdisort213/interp.h
++++ b/cdisort213/interp.h
+@@ -63,6 +63,14 @@ DISPATCH_MACRO inline void c_interp_eigenvec(disort_state *ds,
+     }
+   }
+ 
++#ifndef __CUDA_ARCH__
++  if (mazim == 0 && getenv("PYDISORT_TRACE_INTERP") != NULL) {
++    fprintf(stderr, "PYDISORT_TRACE_GU layer=%d", lc);
++    for (iu = 1; iu <= ds->numu; iu++)
++      for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", GU(iu, iq, lc));
++    fprintf(stderr, "\n");
++  }
++#endif
+   return;
+ }
+ 

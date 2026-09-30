@@ -26,6 +26,7 @@ extension:
 		find python/csrc python/disort src disort cdisort213 -type f -newer python/pydisort$(EXT_SUFFIX) -print -quit | grep -q .; then \
 		echo 'Rebuilding pydisort extension because a native source changed'; \
 		PATH="$(VENV_BIN):$$PATH" WORKSPACE="$(CURDIR)" $(PYTHON) setup.py build_ext --inplace; \
+		cp build/lib.linux-x86_64-cpython-312/pydisort/pydisort$(EXT_SUFFIX) python/pydisort$(EXT_SUFFIX); \
 	else \
 		echo 'pydisort extension is current'; \
 	fi
