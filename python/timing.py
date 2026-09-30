@@ -14,7 +14,9 @@ from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import wraps
+from pathlib import Path
 from time import perf_counter
 from typing import Any, TypeVar, overload
 
@@ -160,6 +162,31 @@ class TimingCollector(AbstractContextManager["TimingCollector"]):
                 ),
             }
         return result
+
+    def append_text_report(
+        self, path: Path, *, case: str, backend: str
+    ) -> None:
+        """Append this collector's summary to a stable human-readable log."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        new_file = not path.exists()
+        with path.open("a", encoding="utf-8") as handle:
+            if new_file:
+                handle.write(
+                    "# Incremental tensor-backend timing log\n"
+                    "# timestamp_utc | case | backend | function | calls | "
+                    "wall_seconds | cuda_seconds\n"
+                )
+            timestamp = datetime.now(UTC).isoformat()
+            for name, values in self.summary().items():
+                cuda_seconds = values["cuda_seconds"]
+                cuda_text = (
+                    "-" if cuda_seconds is None else f"{cuda_seconds:.9f}"
+                )
+                handle.write(
+                    f"{timestamp} | {case} | {backend} | {name} | "
+                    f"{values['calls']} | {values['wall_seconds']:.9f} | "
+                    f"{cuda_text}\n"
+                )
 
 
 @overload

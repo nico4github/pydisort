@@ -50,3 +50,14 @@ def test_collector_records_cuda_event_time_without_per_call_sync():
     assert record.name == "cuda_add"
     assert record.cuda_seconds is not None
     assert record.cuda_seconds >= 0.0
+
+
+def test_collector_appends_plain_text_report(tmp_path):
+    with TIMING.TimingCollector() as collector:
+        inner(1)
+
+    path = tmp_path / "tensor_timing.txt"
+    collector.append_text_report(path, case="tp9", backend="cpu")
+    content = path.read_text()
+    assert "timestamp_utc | case | backend" in content
+    assert "| tp9 | cpu | inner | 1 |" in content

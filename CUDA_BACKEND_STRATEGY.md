@@ -70,8 +70,10 @@ redesign.
 Instrument every tensor-backend stage with `@pydisort.timed` and run it inside
 `pydisort.TimingCollector`. The decorator is inactive outside that context. Its
 summary reports inclusive wall time and CUDA-event time per named function,
-synchronizing only when the summary is requested. Store that summary with each
-benchmark record before optimizing the completed flow.
+synchronizing only when the summary is requested. Append that summary to
+`$DISORT_REPORT_DIR/testproblem09_tensor_reconstruction_timing.txt` after each
+run, alongside the JSON benchmark artifacts, before optimizing the completed
+flow.
 
 1. **Specify the first supported subset.** Freeze a TP9-derived,
    plane-parallel, float64 flux contract: streams, layer properties, direct
