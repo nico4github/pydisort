@@ -279,7 +279,7 @@ class DisortImpl : public torch::nn::Cloneable<DisortImpl> {
 
   //! Gather C-DISORT azimuthal Fourier intensity components.
   //!
-  //! Available only after DisortOptions.fourier_components() on CPU. The
+  //! Available only after DisortOptions.fourier_components(). The
   //! dimensions are (nwave, ncol, nstr, ntau, numu), with the third axis
   //! indexed by Fourier order beginning at zero.
   torch::Tensor gather_fourier() const;
@@ -334,6 +334,9 @@ class DisortImpl : public torch::nn::Cloneable<DisortImpl> {
  private:
   //! Reused CUDA scratch storage; ignored by the CPU dispatch path.
   torch::Tensor cuda_workspace_;
+
+  //! Device-resident C-DISORT Fourier-order output from the latest CUDA solve.
+  torch::Tensor cuda_fourier_;
 
   //! flat array of disort states (nwave * ncol)
   std::vector<disort_state> ds_;

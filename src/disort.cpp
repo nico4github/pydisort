@@ -342,15 +342,15 @@ torch::Tensor DisortImpl::gather_fourier() const {
   TORCH_CHECK(options->fourier_components_enabled(),
               "DisortImpl::gather_fourier: enable output with "
               "DisortOptions.fourier_components()");
-  if (result_options_.device().is_cuda()) {
-    throw UnsupportedCapabilityError(
-        "pydisort gather_fourier is not implemented for CUDA; use "
-        "backend='cpu' for Fourier-component output");
-  }
-
   const int nstr = ds().nstr;
   const int ntau = ds().ntau;
   const int numu = ds().numu;
+  if (result_options_.device().is_cuda()) {
+    TORCH_CHECK(cuda_fourier_.defined(),
+                "DisortImpl::gather_fourier: no CUDA Fourier output is "
+                "available; call forward() first");
+    return cuda_fourier_;
+  }
   auto result = torch::empty(
       {options->nwave() * options->ncol(), nstr, ntau, numu}, result_options_);
   for (int i = 0; i < options->nwave() * options->ncol(); ++i) {
@@ -577,12 +577,6 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
     throw UnsupportedCapabilityError(
         "pydisort Hapke BRDF is currently CPU-only; use backend='cpu'");
   }
-  if (options->fourier_components_enabled() && cuda_requested) {
-    throw UnsupportedCapabilityError(
-        "pydisort Fourier-component output is currently CPU-only; use "
-        "backend='cpu'");
-  }
-
   if (backend != "auto") {
     const auto target_device = backend == "cpu" ? torch::Device(torch::kCPU)
                                                 : torch::Device(torch::kCUDA);
@@ -735,6 +729,12 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
   auto flx = prop.is_cuda()
                  ? torch::empty({nwave, ncol, ds().ntau, 2}, prop.options())
                  : torch::zeros({nwave, ncol, ds().ntau, 2}, prop.options());
+  if (prop.is_cuda() && options->fourier_components_enabled()) {
+    cuda_fourier_ = torch::empty({nwave, ncol, ds().nstr, ds().ntau, ds().numu},
+                                 prop.options());
+  } else {
+    cuda_fourier_ = torch::Tensor();
+  }
   auto build_iterator =
       [&](torch::Tensor& output, const torch::Tensor& prop_in,
           const torch::Tensor& umu0, const torch::Tensor& phi0,
@@ -783,7 +783,8 @@ torch::Tensor DisortImpl::forward(torch::Tensor prop,
                         disort_state* states) {
     at::native::call_disort(flx.device().type(), iter, options->upward(),
                             general_path, states, ds_out_.data(),
-                            &cuda_workspace_);
+                            &cuda_workspace_,
+                            cuda_fourier_.defined() ? &cuda_fourier_ : nullptr);
   };
 
   bool general_path = false;

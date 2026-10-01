@@ -266,20 +266,47 @@ def test_gather_fourier_requires_typed_option():
         solver.gather_fourier()
 
 
-def test_fourier_components_reject_cuda_dispatch():
+def test_fourier_components_match_cpu_on_cuda():
     if not torch.cuda.is_available():
         pytest.skip("CUDA is unavailable")
 
-    op = DisortOptions().flags("onlyfl,lamber,quiet").backend("cuda")
-    op.ds().nlyr = 1
-    op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
-    op.fourier_components()
-    solver = Disort(op)
-    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
-    prop[..., 0] = 0.1
+    def configure(backend):
+        op = (
+            DisortOptions()
+            .flags("usrtau,usrang,lamber,quiet")
+            .backend(backend)
+        )
+        op.ds().nlyr = 1
+        op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
+        op.user_tau(np.array([0.0, 0.7]))
+        op.user_mu(np.array([-0.5, 0.5]))
+        op.user_phi(np.array([36.0]))
+        op.fourier_components()
+        return op
 
-    with pytest.raises(NotImplementedError, match="Fourier-component output"):
-        solver.forward(prop, fbeam=torch.ones((1, 1), dtype=torch.float64))
+    prop = torch.zeros((1, 1, 1, 6), dtype=torch.float64)
+    prop[..., 0] = 0.7
+    prop[..., 1] = 0.6
+    prop[..., 2:] = torch.tensor([0.25, 0.1, 0.05, 0.02])
+    boundary = {
+        "umu0": torch.tensor([0.4], dtype=torch.float64),
+        "phi0": torch.tensor([12.0], dtype=torch.float64),
+        "fbeam": torch.tensor([[2.0]], dtype=torch.float64),
+        "albedo": torch.tensor([[0.2]], dtype=torch.float64),
+    }
+
+    cpu_solver = Disort(configure("cpu"))
+    cpu_solver.forward(prop, **boundary)
+    cpu_components = cpu_solver.gather_fourier()
+
+    cuda_solver = Disort(configure("cuda"))
+    cuda_solver.forward(prop, **boundary)
+    cuda_components = cuda_solver.gather_fourier()
+
+    assert cuda_components.is_cuda
+    assert_allclose(
+        cuda_components.cpu(), cpu_components, rtol=1e-12, atol=1e-12
+    )
 
 
 def test_hapke_brdf_matches_cdisort_problem_6d_fluxes():

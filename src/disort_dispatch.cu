@@ -18,9 +18,14 @@ void launch_disort_cuda(at::TensorIterator& iter, int upward,
                         disort_state ds0, double* d_wvnmlo,
                         double* d_wvnmhi, double* d_utau, double* d_umu,
                         double* d_phi, double* d_zd, size_t work_size,
-                        at::Tensor* cuda_workspace) {
+                        at::Tensor* cuda_workspace,
+                        at::Tensor* fourier_output) {
   AT_DISPATCH_FLOATING_TYPES(iter.dtype(), "call_disort_cuda", [&] {
     int nprop = (int)at::native::ensure_nonempty_size(iter.input(0), -1);
+    scalar_t* fourier_data = fourier_output == nullptr
+                                 ? nullptr
+                                 : fourier_output->data_ptr<scalar_t>();
+    const int fourier_size = ds0.nstr * ds0.ntau * ds0.numu;
 
     native::gpu_chunk_kernel<12>(
         iter, work_size, cuda_workspace,
@@ -65,6 +70,12 @@ void launch_disort_cuda(at::TensorIterator& iter, int upward,
           disort_impl<FastFluxNstr>(out, prop, umu0, phi0, fbeam, albedo,
                                      fluor, fisot, temis, btemp, ttemp, temf,
                                      upward, d, o, nprop);
+          if (fourier_data != nullptr) {
+            scalar_t* destination = fourier_data + idx * fourier_size;
+            for (int i = 0; i < fourier_size; ++i) {
+              destination[i] = static_cast<scalar_t>(o.uum[i]);
+            }
+          }
         });
   });
 }
@@ -74,14 +85,15 @@ void launch_disort_cuda(at::TensorIterator& iter, int upward,
 // path with all work memory served by the per-thread pmem pool.
 //
 // Differences from the CPU path (by design):
-//   - results are returned only through the flx output tensor; the host
-//     ds_out array is not written, so DisortImpl::gather_flx/gather_rad
-//     remain CPU-only.
+//   - fluxes are returned through the flx output tensor and optional Fourier
+//     components through a device-resident tensor; the host ds_out array is
+//     not written, so gather_flx/gather_rad remain CPU-only.
 //   - the emission callback is c_planck_func2, as hard-coded in
 //     disort_impl for the CPU path as well.
 void call_disort_cuda(at::TensorIterator& iter, int upward, bool force_general,
                       disort_state *ds, disort_output *ds_out,
-                      at::Tensor *cuda_workspace) {
+                      at::Tensor *cuda_workspace,
+                      at::Tensor *fourier_output) {
   at::cuda::CUDAGuard device_guard(iter.device());
   (void)ds_out;
 
@@ -123,15 +135,18 @@ void call_disort_cuda(at::TensorIterator& iter, int upward, bool force_general,
                                : c_disort_work_size(&ds0);
   if (fast_flux && ds0.nstr == 4) {
     launch_disort_cuda<4>(iter, upward, ds0, d_wvnmlo, d_wvnmhi, d_utau,
-                          d_umu, d_phi, d_zd, work_size, cuda_workspace);
+                          d_umu, d_phi, d_zd, work_size, cuda_workspace,
+                          fourier_output);
   }
   else if (fast_flux) {
     launch_disort_cuda<8>(iter, upward, ds0, d_wvnmlo, d_wvnmhi, d_utau,
-                          d_umu, d_phi, d_zd, work_size, cuda_workspace);
+                          d_umu, d_phi, d_zd, work_size, cuda_workspace,
+                          fourier_output);
   }
   else {
     launch_disort_cuda<0>(iter, upward, ds0, d_wvnmlo, d_wvnmhi, d_utau,
-                          d_umu, d_phi, d_zd, work_size, cuda_workspace);
+                          d_umu, d_phi, d_zd, work_size, cuda_workspace,
+                          fourier_output);
   }
 
   C10_CUDA_CHECK(cudaFree(d_wvnmlo));

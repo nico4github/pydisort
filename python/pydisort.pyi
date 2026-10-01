@@ -410,12 +410,12 @@ class DisortOptions:
         """
         ...
     def fourier_components(self) -> DisortOptions:
-        """Enable CPU-only azimuthal Fourier-component output.
+        """Enable azimuthal Fourier-component output.
 
         Use :meth:`Disort.gather_fourier` after :meth:`Disort.forward` to
         obtain components ordered from Fourier order zero through ``nstr - 1``.
-        CUDA requests raise ``NotImplementedError`` until that result buffer is
-        transferred and validated.
+        CUDA keeps the result device-resident and validates it against the CPU
+        C-DISORT path.
         """
         ...
     def general_source(
@@ -641,7 +641,7 @@ class Disort(nn.Module):
     def gather_fourier(self) -> torch.Tensor:
         """Gather C-DISORT azimuthal Fourier components.
 
-        This CPU-only accessor requires :meth:`DisortOptions.fourier_components`.
+        This accessor requires :meth:`DisortOptions.fourier_components`.
         Returns a tensor with shape ``(nwave, ncol, nstr, ntau, numu)``; the
         third dimension is the Fourier order, beginning at zero.
         """

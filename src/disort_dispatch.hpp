@@ -14,7 +14,8 @@ namespace at::native {
 
 using disort_fn = void (*)(at::TensorIterator& iter, int upward,
                            bool force_general, disort_state* ds,
-                           disort_output* ds_out, at::Tensor* cuda_workspace);
+                           disort_output* ds_out, at::Tensor* cuda_workspace,
+                           at::Tensor* fourier_output);
 
 DECLARE_DISPATCH(disort_fn, call_disort);
 
