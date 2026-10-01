@@ -162,6 +162,23 @@ def test_reduced_eigen_matrix_is_batched_and_finite():
     assert torch.isfinite(matrix.matrix).all()
 
 
+def test_reduced_eigen_matrix_accepts_a_nonzero_fourier_order():
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        gaussian_quadrature,
+        prepare_layer_optics,
+    )
+
+    prop = torch.tensor([[[[1.0, 0.6, 0.3, 0.1, 0.03]]]], dtype=torch.float64)
+    optics = prepare_layer_optics(
+        prepare_atmosphere(prop, nstr=4, nmom=4), nstr=4, deltam=False
+    )
+    matrix = build_reduced_eigen_matrix(
+        optics, gaussian_quadrature(4, device="cpu"), nstr=4, fourier_order=1
+    )
+    assert torch.isfinite(matrix.matrix).all()
+
+
 def test_reduced_eigensolve_is_batched_and_real():
     from pydisort.tensor_backend import solve_reduced_eigenproblem
 

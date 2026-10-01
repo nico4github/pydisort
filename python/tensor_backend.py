@@ -290,19 +290,18 @@ class TensorReducedEigenMatrix:
 
 @timed(name="tensor_backend.build_reduced_eigen_matrix")
 def build_reduced_eigen_matrix(
-    optics: TensorLayerOptics, quadrature: TensorQuadrature, *, nstr: int
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    *,
+    nstr: int,
+    fourier_order: int = 0,
 ) -> TensorReducedEigenMatrix:
-    """Build TP9's batched mazim=0 reduced eigenproblem matrix (SS(12))."""
+    """Build C-DISORT's batched Fourier reduced eigenproblem (SS(12))."""
     nn = nstr // 2
     mu = quadrature.cmu
-    ylm = torch.empty((nstr, nstr), dtype=mu.dtype, device=mu.device)
-    ylm[0] = 1.0
-    ylm[1] = mu
-    for degree in range(2, nstr):
-        ylm[degree] = (
-            (2 * degree - 1) * mu * ylm[degree - 1]
-            - (degree - 1) * ylm[degree - 2]
-        ) / degree
+    if fourier_order < 0 or fourier_order >= nstr:
+        raise ValueError("fourier_order must lie in [0, nstr)")
+    ylm = associated_legendre(mu, order=fourier_order, maximum_degree=nstr - 1)
     cc = 0.5 * torch.einsum(
         "...l,li,lj,j->...ij", optics.gl, ylm, ylm, quadrature.cwt
     )
