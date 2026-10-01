@@ -122,3 +122,16 @@ algorithm/layout change, not transfer tuning or a device-selection change.
 The reduced matrix is not symmetric (measured maximum antisymmetric entry
 107.55), so a substitution of `torch.linalg.eigh` for the required general
 eigensolve is rejected on correctness grounds.
+
+### Rejected boundary block experiment — 2026-10-01
+
+A validation-only adapter extracted 100 `32x32` layer blocks from the existing
+dense TP9 boundary matrix and passed them to `solve_block_tridiagonal`. The
+matrix contained no nonzero blocks outside the first sub/super-diagonals, but
+the resulting H100 constants differed from the dense `torch.linalg.solve`
+solution by `142.4` in maximum absolute value (dense maximum magnitude
+`0.6362`). The generic block routine's two-block synthetic test is therefore
+not sufficient evidence for TP9. The adapter was removed and the dense path
+was not changed. A future block implementation must first add a multi-block,
+ill-conditioned TP9 fixture that compares constants and fluxes with the dense
+and C-DISORT paths before it can be timed or promoted.
