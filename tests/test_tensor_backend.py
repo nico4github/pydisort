@@ -189,6 +189,33 @@ def test_nakajima_tanaka_phase_matches_legendre_sum():
     assert torch.allclose(actual, torch.tensor(expected, dtype=torch.float64))
 
 
+def test_nakajima_tanaka_single_scatter_matches_one_layer_formula():
+    from pydisort.tensor_backend import nakajima_tanaka_single_scatter
+
+    phase = torch.full((5, 1, 1), 1.5, dtype=torch.float64)
+    omega = torch.full_like(phase, 0.4)
+    tau = torch.ones_like(phase)
+    user_tau = torch.tensor([0.25], dtype=torch.float64)
+    user_mu = torch.tensor([0.4], dtype=torch.float64)
+    umu0 = torch.tensor(
+        [[0.2], [0.35], [0.5], [0.65], [0.8]], dtype=torch.float64
+    )
+    fbeam = torch.full_like(umu0, torch.pi)
+    actual = nakajima_tanaka_single_scatter(
+        phase, omega, tau, user_tau, user_mu, umu0, fbeam
+    )
+    exp0 = torch.exp(-user_tau[0] / umu0)
+    exp1 = torch.exp(-((1.0 - user_tau[0]) / user_mu[0] + 1.0 / umu0))
+    expected = (
+        fbeam
+        / (4.0 * torch.pi * (1.0 + user_mu[0] / umu0))
+        * omega[..., 0]
+        * phase[..., 0]
+        * (exp0 - exp1)
+    )
+    assert torch.allclose(actual[..., 0, 0], expected, rtol=1e-14, atol=1e-14)
+
+
 def test_reduced_eigensolve_is_batched_and_real():
     from pydisort.tensor_backend import solve_reduced_eigenproblem
 

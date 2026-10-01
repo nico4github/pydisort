@@ -303,8 +303,12 @@ def nakajima_tanaka_single_scatter(
         device=phase.device,
     )
     for level, depth in enumerate(user_tau):
-        target = torch.searchsorted(tau, depth, right=False).clamp(
-            max=tau.shape[-1] - 1
+        target = (
+            torch.searchsorted(
+                tau, depth.expand(*batch, 1).contiguous(), right=False
+            )
+            .squeeze(-1)
+            .clamp(max=tau.shape[-1] - 1)
         )
         for angle, mu in enumerate(user_mu):
             exp0 = torch.exp(-depth / umu0)

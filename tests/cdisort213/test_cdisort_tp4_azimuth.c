@@ -44,6 +44,16 @@ int main(void) {
     for (int lu = 1; lu <= ds.ntau; ++lu)
       for (int iu = 1; iu <= ds.numu; ++iu) fprintf(stderr, " %.17g", UU(j, iu, lu));
   fprintf(stderr, "\n");
+  fprintf(stderr, "PYDISORT_TRACE_TP4_CORRECTION");
+  for (int j = 1; j <= ds.nphi; ++j)
+    for (int lu = 1; lu <= ds.ntau; ++lu)
+      for (int iu = 1; iu <= ds.numu; ++iu) {
+        double raw = 0.;
+        for (int k = 0; k < ds.nstr; ++k)
+          raw += UUM(k, iu, lu) * cos(k * ds.phi[j - 1] * M_PI / 180.);
+        fprintf(stderr, " %.17g", UU(j, iu, lu) - raw);
+      }
+  fprintf(stderr, "\n");
   c_disort_out_free(&ds, &out); c_disort_state_free(&ds);
   return 0;
 }
