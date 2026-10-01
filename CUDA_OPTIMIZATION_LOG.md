@@ -135,3 +135,14 @@ not sufficient evidence for TP9. The adapter was removed and the dense path
 was not changed. A future block implementation must first add a multi-block,
 ill-conditioned TP9 fixture that compares constants and fluxes with the dense
 and C-DISORT paths before it can be timed or promoted.
+
+## Three-way TP9 comparison — 2026-10-01
+
+The directly comparable 100-layer, 32-stream radiance measurements now include
+Fortran v4 DP (1.80 ms/scalar for one channel; 1.88 ms/scalar for ten), direct
+C-DISORT (1.593 ms/scalar), and the one-core pydisort C backend (11.845
+ms/scalar for one; 12.389 ms/scalar for ten). The tensor backend presently
+implements the flux-only restricted subset, so its 47.922 ms CPU and 100.825
+ms H100 one-channel baselines are recorded separately rather than represented
+as radiance comparisons. The complete table and measurement scope are stored
+beside the benchmark logs in `testproblem09_tensor_backend_comparison.txt`.
