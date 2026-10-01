@@ -227,6 +227,16 @@ def test_nakajima_tanaka_single_scatter_matches_one_layer_formula():
     assert torch.allclose(actual[..., 0, 0], expected, rtol=1e-14, atol=1e-14)
 
 
+def test_nakajima_tanaka_correction_adds_both_native_terms():
+    from pydisort.tensor_backend import apply_nakajima_tanaka_correction
+
+    radiance = torch.ones((1, 1, 2, 3), dtype=torch.float64)
+    single = torch.full_like(radiance, 0.2)
+    ims = torch.full_like(radiance, -0.05)
+    actual = apply_nakajima_tanaka_correction(radiance, single, ims)
+    assert torch.allclose(actual, torch.full_like(radiance, 1.15))
+
+
 def test_reduced_eigensolve_is_batched_and_real():
     from pydisort.tensor_backend import solve_reduced_eigenproblem
 

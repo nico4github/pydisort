@@ -1049,6 +1049,18 @@ def reconstruct_tp9_azimuthal_radiance(
     return torch.sum(components * weights, dim=-3)
 
 
+@timed(name="tensor_backend.apply_nakajima_tanaka_correction")
+def apply_nakajima_tanaka_correction(
+    radiance: torch.Tensor,
+    single_scatter: torch.Tensor,
+    ims: torch.Tensor,
+) -> torch.Tensor:
+    """Apply C-DISORT's original correction to final azimuthal radiance."""
+    if radiance.shape != single_scatter.shape or radiance.shape != ims.shape:
+        raise ValueError("radiance and correction terms must share a shape")
+    return radiance + single_scatter + ims
+
+
 @timed(name="tensor_backend.extract_tp9_user_intensity_one_layer_m0")
 def extract_tp9_user_intensity_one_layer_m0(
     user_eigenvectors: torch.Tensor,
