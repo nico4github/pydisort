@@ -241,3 +241,14 @@ Then run the same staged parity path against the azimuth-dependent published
 reference case before introducing Fourier surface coupling. Lambertian remains
 m=0 only by construction; Hapke and other non-Lambertian BRDF coupling remain
 deferred.
+
+## Azimuth reconstruction result (2026-10-01)
+
+- `reconstruct_tp9_azimuthal_radiance` now performs the native C-DISORT
+  cosine sum on device from `(*batch, nfourier, ntau, numu)` components.
+- The new, separate final-radiance fixture is produced by
+  `PYDISORT_TRACE_AZIMUTH` at phi=60 degrees and passes on CPU and H100 CUDA
+  at `2e-16` absolute tolerance. The tensor focused suite now has 91 passes.
+- The next capability gate is an azimuth-dependent published reference case;
+  component-level synthetic parity is complete. Fourier surface coupling is
+  still deferred, so this gate retains the black Lambertian boundary.

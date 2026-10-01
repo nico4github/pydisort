@@ -63,3 +63,9 @@ fixtures and CPU/CUDA pytest gates. The active increment is final cosine
 summation at arbitrary azimuth using the retained native final-radiance trace;
 only after that gate passes will the implementation move to an
 azimuth-dependent published reference case.
+
+The final cosine reconstruction is now complete and gated with a separate
+native phi=60-degree fixture on CPU and H100 CUDA. The next approved stage is
+the azimuth-dependent published reference case with a black Lambertian lower
+boundary. It will first record raw components and final radiance, then promote
+the full result to pytest before any Fourier-order surface coupling.
