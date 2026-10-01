@@ -146,3 +146,10 @@ implements the flux-only restricted subset, so its 47.922 ms CPU and 100.825
 ms H100 one-channel baselines are recorded separately rather than represented
 as radiance comparisons. The complete table and measurement scope are stored
 beside the benchmark logs in `testproblem09_tensor_backend_comparison.txt`.
+
+The missing tensor CPU ten-channel baseline has now been measured: five warmed
+runs were 0.7010, 0.7030, 0.7198, 0.7437, and 1.0896 s; the recorded median is
+0.7198 s (71.98 ms/scalar). The first high outlier is retained in the
+incremental log rather than discarded. CPU is faster than the current H100
+tensor path at this batch size (H100 five-run mean 0.8922 s), while both remain
+far behind the native scalar Fortran/C routes.
