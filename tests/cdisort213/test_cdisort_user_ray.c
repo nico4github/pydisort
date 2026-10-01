@@ -50,6 +50,7 @@ void run_disort_user_ray(void) {
   const int beam = getenv("PYDISORT_USER_RAY_BEAM") != NULL;
   const int thermal = getenv("PYDISORT_USER_RAY_THERMAL") != NULL;
   const int general_source = getenv("PYDISORT_USER_RAY_GENERAL_SOURCE") != NULL;
+  const int lambertian = getenv("PYDISORT_USER_RAY_LAMBERTIAN") != NULL;
   const int nlyr = five_layer ? 5 : 2;
   const double ssalb = 0.;
    int icas, lc, k;
@@ -159,7 +160,7 @@ void run_disort_user_ray(void) {
           }
         }
 
-        ds.bc.albedo = 0.;
+        ds.bc.albedo = lambertian ? 0.35 : 0.;
 
         break;
     } /* Execute DISORT with Planck emission function */
