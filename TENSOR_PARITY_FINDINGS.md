@@ -252,3 +252,17 @@ deferred.
 - The next capability gate is an azimuth-dependent published reference case;
   component-level synthetic parity is complete. Fourier surface coupling is
   still deferred, so this gate retains the black Lambertian boundary.
+
+## Published TP4c azimuth diagnostic (2026-10-01)
+
+- Added `test_cdisort_tp4_azimuth.release`, a separate trace driver that copies
+  the immutable published TP4c inputs: 32-stream Haze-L, one layer, `ssalb`
+  0.9, `umu0=0.5`, and phi 0/90/180 degrees. Its final values reproduce the
+  published reference table (for example, the top upward phi=0 value is
+  `0.87081176686729278`).
+- The driver emits raw `UUM` components and correction-inclusive final `UU`.
+  TP4c enables C-DISORT's original intensity correction. The current tensor
+  transport represents the raw Fourier solution but deliberately does not
+  implement that correction. Therefore TP4c final-radiance parity is not yet
+  declared supported; the next implementation unit is a separately traced,
+  CPU-first port of the correction, followed by a CPU/CUDA fixture gate.
