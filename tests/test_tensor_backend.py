@@ -564,6 +564,104 @@ def test_tp9_fourier_order_one_beam_source_matches_native_trace(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tp9_fourier_order_one_user_rays_match_cdisort(device):
+    """Gate the first complete nonzero Fourier component against C-DISORT."""
+    from pydisort.tensor_backend import (
+        build_reduced_eigen_matrix,
+        build_tp9_beam_source,
+        build_tp9_boundary_system,
+        extract_tp9_user_intensity_m0,
+        gaussian_quadrature,
+        interpolate_tp9_eigenvectors,
+        interpolate_tp9_user_beam_source,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_reduced_eigenproblem,
+        solve_tp9_boundary_system,
+    )
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_user_ray_beam_five_layer_fourier_reference.json"
+        ).read_text()
+    )
+    prop = torch.zeros((1, 1, 5, 6), dtype=torch.float64, device=device)
+    prop[..., 0] = torch.tensor(
+        fixture["dtau"], dtype=torch.float64, device=device
+    )
+    prop[..., 1] = torch.tensor(
+        fixture["ssalb"], dtype=torch.float64, device=device
+    )
+    asymmetry = torch.tensor(fixture["gg"], dtype=torch.float64, device=device)
+    prop[..., 2:] = asymmetry.view(1, 1, 5, 1).pow(
+        torch.arange(1, 5, dtype=torch.float64, device=device)
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=4, nmom=4)
+    optics = prepare_layer_optics(atmosphere, nstr=4, deltam=True)
+    tau = torch.tensor(fixture["user_tau"], dtype=torch.float64, device=device)
+    tau[-1] = optics.tauc[..., -1].max()
+    grid = prepare_output_grid(tau, atmosphere, optics, deltam=True)
+    quadrature = gaussian_quadrature(4, device=device)
+    user_mu = torch.tensor(
+        fixture["user_mu"], dtype=torch.float64, device=device
+    )
+    umu0 = torch.full(
+        (1, 1), fixture["umu0"], dtype=torch.float64, device=device
+    )
+    fbeam = torch.full(
+        (1, 1), fixture["fbeam"], dtype=torch.float64, device=device
+    )
+    fisot = torch.zeros((1, 1), dtype=torch.float64, device=device)
+    order = 1
+    eigenvalues, eigenvectors = solve_reduced_eigenproblem(
+        build_reduced_eigen_matrix(
+            optics, quadrature, nstr=4, fourier_order=order
+        )
+    )
+    beam_source = build_tp9_beam_source(
+        optics, quadrature, umu0, fbeam, nstr=4, fourier_order=order
+    )
+    constants = solve_tp9_boundary_system(
+        build_tp9_boundary_system(
+            eigenvectors, eigenvalues, optics, fisot, beam_source, None, umu0
+        )
+    )
+    actual = extract_tp9_user_intensity_m0(
+        interpolate_tp9_eigenvectors(
+            eigenvectors,
+            optics,
+            quadrature,
+            user_mu,
+            fourier_order=order,
+        ),
+        eigenvalues,
+        optics,
+        grid,
+        constants,
+        user_mu,
+        fisot,
+        interpolate_tp9_user_beam_source(
+            beam_source,
+            optics,
+            quadrature,
+            user_mu,
+            umu0,
+            fbeam,
+            fourier_order=order,
+        ),
+        umu0,
+    )
+    expected = torch.tensor(
+        fixture["fourier_components"][order],
+        dtype=torch.float64,
+        device=device,
+    ).reshape(6, 4)
+    assert torch.allclose(actual[0, 0], expected, rtol=5e-8, atol=5e-10)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_tensor_beam_flux_matches_self_contained_cdisort_fixture(device):
     from pydisort.tensor_backend import solve_tp9_flux
 

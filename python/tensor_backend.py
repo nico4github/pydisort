@@ -679,15 +679,19 @@ def _legendre_m0(mu: torch.Tensor, nstr: int) -> torch.Tensor:
     return torch.stack(values[:nstr], dim=-1)
 
 
-@timed(name="tensor_backend.interpolate_tp9_eigenvectors_m0")
-def interpolate_tp9_eigenvectors_m0(
+@timed(name="tensor_backend.interpolate_tp9_eigenvectors")
+def interpolate_tp9_eigenvectors(
     eigenvectors: torch.Tensor,
     optics: TensorLayerOptics,
     quadrature: TensorQuadrature,
     user_mu: torch.Tensor,
+    *,
+    fourier_order: int = 0,
 ) -> torch.Tensor:
-    """C-DISORT c_interp_eigenvec for m=0 user polar angles."""
+    """C-DISORT ``c_interp_eigenvec`` for one Fourier order."""
     nstr = eigenvectors.shape[-1]
+    if fourier_order < 0 or fourier_order >= nstr:
+        raise ValueError("fourier_order must lie in [0, nstr)")
     nn = nstr // 2
     evecc = torch.empty_like(eigenvectors)
     for i in range(nn):
@@ -701,15 +705,32 @@ def interpolate_tp9_eigenvectors_m0(
     inner = torch.einsum(
         "j,jl,...ji->...il",
         quadrature.cwt,
-        _legendre_m0(quadrature.cmu, nstr),
+        associated_legendre(
+            quadrature.cmu, order=fourier_order, maximum_degree=nstr - 1
+        ).movedim(0, -1),
         evecc,
     )
     raw = torch.einsum(
         "...il,ul->...ui",
         0.5 * inner * optics.gl.unsqueeze(-2),
-        _legendre_m0(user_mu, nstr),
+        associated_legendre(
+            user_mu, order=fourier_order, maximum_degree=nstr - 1
+        ).movedim(0, -1),
     )
     return torch.cat((raw[..., :, nn:].flip(-1), raw[..., :, :nn]), dim=-1)
+
+
+@timed(name="tensor_backend.interpolate_tp9_eigenvectors_m0")
+def interpolate_tp9_eigenvectors_m0(
+    eigenvectors: torch.Tensor,
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    user_mu: torch.Tensor,
+) -> torch.Tensor:
+    """Compatibility wrapper for the azimuth-independent interpolation."""
+    return interpolate_tp9_eigenvectors(
+        eigenvectors, optics, quadrature, user_mu, fourier_order=0
+    )
 
 
 @timed(name="tensor_backend.top_boundary_user_intensity")
@@ -802,43 +823,31 @@ def extract_tp9_user_intensity_one_layer_m0(
     return output
 
 
-@timed(name="tensor_backend.extract_tp9_user_intensity_m0")
-def interpolate_tp9_user_beam_source_m0(
+@timed(name="tensor_backend.interpolate_tp9_user_beam_source")
+def interpolate_tp9_user_beam_source(
     beam_source: torch.Tensor,
     optics: TensorLayerOptics,
     quadrature: TensorQuadrature,
     user_mu: torch.Tensor,
     umu0: torch.Tensor,
     fbeam: torch.Tensor,
+    *,
+    fourier_order: int = 0,
 ) -> torch.Tensor:
-    """Interpolate C-DISORT's plane-parallel m=0 beam source to user rays."""
+    """Interpolate C-DISORT's beam source to user rays for one Fourier order."""
     nstr = quadrature.cmu.numel()
+    if fourier_order < 0 or fourier_order >= nstr:
+        raise ValueError("fourier_order must lie in [0, nstr)")
     nn = nstr // 2
-    degree = torch.arange(nstr, dtype=user_mu.dtype, device=user_mu.device)
-    ylm_user = user_mu.unsqueeze(0).pow(degree.unsqueeze(-1))
-    ylm_quadrature = quadrature.cmu.unsqueeze(0).pow(degree.unsqueeze(-1))
-    ylm_beam = (-umu0).unsqueeze(-1).pow(degree)
-    # Convert monomials to Legendre polynomials using the standard recurrence.
-    ylm_user[0] = 1.0
-    ylm_quadrature[0] = 1.0
-    ylm_beam[..., 0] = 1.0
-    if nstr > 1:
-        ylm_user[1] = user_mu
-        ylm_quadrature[1] = quadrature.cmu
-        ylm_beam[..., 1] = -umu0
-    for order in range(2, nstr):
-        ylm_user[order] = (
-            (2 * order - 1) * user_mu * ylm_user[order - 1]
-            - (order - 1) * ylm_user[order - 2]
-        ) / order
-        ylm_quadrature[order] = (
-            (2 * order - 1) * quadrature.cmu * ylm_quadrature[order - 1]
-            - (order - 1) * ylm_quadrature[order - 2]
-        ) / order
-        ylm_beam[..., order] = (
-            (2 * order - 1) * (-umu0) * ylm_beam[..., order - 1]
-            - (order - 1) * ylm_beam[..., order - 2]
-        ) / order
+    ylm_user = associated_legendre(
+        user_mu, order=fourier_order, maximum_degree=nstr - 1
+    )
+    ylm_quadrature = associated_legendre(
+        quadrature.cmu, order=fourier_order, maximum_degree=nstr - 1
+    )
+    ylm_beam = associated_legendre(
+        -umu0, order=fourier_order, maximum_degree=nstr - 1
+    ).movedim(0, -1)
     c_disort_beam_source = torch.cat(
         (beam_source[..., nn:], beam_source[..., :nn].flip(dims=(-1,))), dim=-1
     )
@@ -849,8 +858,35 @@ def interpolate_tp9_user_beam_source_m0(
         quadrature.cwt,
     )
     psi = 0.5 * optics.gl * projected
-    direct = fbeam.unsqueeze(-1) * optics.gl * ylm_beam / (4.0 * torch.pi)
+    direct = (
+        (2.0 if fourier_order else 1.0)
+        * fbeam.unsqueeze(-1)
+        * optics.gl
+        * ylm_beam
+        / (4.0 * torch.pi)
+    )
     return torch.einsum("lu,...l->...u", ylm_user, psi + direct)
+
+
+@timed(name="tensor_backend.interpolate_tp9_user_beam_source_m0")
+def interpolate_tp9_user_beam_source_m0(
+    beam_source: torch.Tensor,
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    user_mu: torch.Tensor,
+    umu0: torch.Tensor,
+    fbeam: torch.Tensor,
+) -> torch.Tensor:
+    """Compatibility wrapper for the azimuth-independent beam source."""
+    return interpolate_tp9_user_beam_source(
+        beam_source,
+        optics,
+        quadrature,
+        user_mu,
+        umu0,
+        fbeam,
+        fourier_order=0,
+    )
 
 
 @timed(name="tensor_backend.interpolate_tp9_user_thermal_source_m0")
