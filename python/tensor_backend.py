@@ -874,6 +874,37 @@ def interpolate_tp9_user_general_source_m0(
 
 
 @timed(name="tensor_backend.extract_tp9_user_intensity_m0")
+def lambertian_user_boundary_intensity(
+    eigenvectors: torch.Tensor,
+    eigenvalues: torch.Tensor,
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    constants: torch.Tensor,
+    surface_albedo: torch.Tensor,
+) -> torch.Tensor:
+    """Return C-DISORT's m=0 diffuse Lambertian intensity at the lower boundary."""
+    bottom_grid = TensorOutputGrid(
+        layru=torch.full(
+            (*optics.dtaucpr.shape[:2], 1),
+            optics.dtaucpr.shape[-1],
+            dtype=torch.long,
+            device=optics.dtaucpr.device,
+        ),
+        utaupr=optics.taucpr[..., -1:],
+    )
+    intensity = extract_tp9_quadrature_intensity(
+        eigenvectors, eigenvalues, optics, bottom_grid, constants
+    )
+    nn = quadrature.cmu.numel() // 2
+    weights = (quadrature.cwt[:nn] * quadrature.cmu[:nn]).flip(dims=(-1,))
+    return (
+        2.0
+        * surface_albedo
+        * torch.sum(intensity[..., 0, :nn] * weights, dim=-1)
+    )
+
+
+@timed(name="tensor_backend.extract_tp9_user_intensity_m0")
 def extract_tp9_user_intensity_m0(
     user_eigenvectors: torch.Tensor,
     eigenvalues: torch.Tensor,
@@ -887,6 +918,7 @@ def extract_tp9_user_intensity_m0(
     user_thermal0: torch.Tensor | None = None,
     user_thermal1: torch.Tensor | None = None,
     user_general_source: torch.Tensor | None = None,
+    lambertian_boundary: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """C-DISORT source-free m=0 user rays, including all crossed layers."""
     nstr = user_eigenvectors.shape[-1]
@@ -1135,6 +1167,10 @@ def extract_tp9_user_intensity_m0(
                     )
             if mu < 0:
                 value += fisot * torch.exp(tau / mu)
+            elif lambertian_boundary is not None:
+                value += lambertian_boundary * torch.exp(
+                    (tau - optics.taucpr[..., -1]) / mu
+                )
             result[..., lu, iu] = value
     return result
 

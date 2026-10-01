@@ -1486,6 +1486,7 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
         "tensor_user_ray_thermal_five_layer_reference.json",
         "tensor_user_ray_general_source_five_layer_reference.json",
         "tensor_user_ray_combined_five_layer_reference.json",
+        "tensor_user_ray_lambertian_five_layer_reference.json",
     ],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -1502,6 +1503,7 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         interpolate_tp9_user_beam_source_m0,
         interpolate_tp9_user_general_source_m0,
         interpolate_tp9_user_thermal_source_m0,
+        lambertian_user_boundary_intensity,
         prepare_atmosphere,
         prepare_layer_optics,
         prepare_output_grid,
@@ -1560,6 +1562,7 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         fixture["user_mu"], dtype=torch.float64, device=device
     )
     user_thermal0 = user_thermal1 = user_general_source = None
+    lambertian_boundary = None
     if "fbeam" in fixture:
         umu0 = torch.full(
             (1, 1), fixture["umu0"], dtype=torch.float64, device=device
@@ -1716,6 +1719,26 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         user_general_source = interpolate_tp9_user_general_source_m0(
             general_source, optics, quadrature, user_mu, user_source
         )
+    if "surface_albedo" in fixture:
+        surface_albedo = torch.full(
+            (1, 1),
+            fixture["surface_albedo"],
+            dtype=torch.float64,
+            device=device,
+        )
+        constants = solve_tp9_boundary_system(
+            build_tp9_boundary_system(
+                vectors,
+                values,
+                optics,
+                fisot,
+                surface_albedo=surface_albedo,
+                quadrature=quadrature,
+            )
+        )
+        lambertian_boundary = lambertian_user_boundary_intensity(
+            vectors, values, optics, quadrature, constants, surface_albedo
+        )
     actual = extract_tp9_user_intensity_m0(
         interpolate_tp9_eigenvectors_m0(vectors, optics, quadrature, user_mu),
         values,
@@ -1733,6 +1756,7 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         user_thermal0,
         user_thermal1,
         user_general_source,
+        lambertian_boundary,
     )
     expected = torch.tensor(
         fixture["radiance"], dtype=torch.float64, device=device
