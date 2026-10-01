@@ -492,6 +492,78 @@ def test_tp9_beam_source_is_zero_without_scattering_and_batched():
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tp9_fourier_order_one_beam_source_matches_native_trace(device):
+    """Gate the first nonzero Fourier beam solution against C-DISORT."""
+    from pydisort.tensor_backend import (
+        build_tp9_beam_source,
+        gaussian_quadrature,
+        prepare_layer_optics,
+    )
+
+    prop = torch.zeros((1, 1, 5, 6), dtype=torch.float64, device=device)
+    prop[..., 0] = torch.tensor(
+        [0.15, 0.4, 0.5, 0.7, 0.65], dtype=torch.float64, device=device
+    )
+    prop[..., 1] = torch.tensor(
+        [0.2, 0.55, 0.75, 0.45, 0.85], dtype=torch.float64, device=device
+    )
+    asymmetry = torch.tensor(
+        [0.0, 0.25, 0.55, 0.1, 0.7], dtype=torch.float64, device=device
+    )
+    prop[..., 2:] = asymmetry.view(1, 1, 5, 1).pow(
+        torch.arange(1, 5, dtype=torch.float64, device=device)
+    )
+    optics = prepare_layer_optics(
+        prepare_atmosphere(prop, nstr=4, nmom=4), nstr=4, deltam=True
+    )
+    source = build_tp9_beam_source(
+        optics,
+        gaussian_quadrature(4, device=device),
+        torch.full((1, 1), 0.5, dtype=torch.float64, device=device),
+        torch.full((1, 1), torch.pi, dtype=torch.float64, device=device),
+        nstr=4,
+        fourier_order=1,
+    )
+    # c_upbeam's ZJ order is (positive streams, negative streams); convert
+    # the tensor ZZ order back before comparing the opt-in native trace.
+    native_order = torch.cat(
+        (source[..., 2:], source[..., :2].flip(dims=(-1,))), dim=-1
+    )
+    expected = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [
+                0.058617081508026109,
+                0.013679639354586926,
+                0.17973449413972381,
+                -0.14392546019576868,
+            ],
+            [
+                0.18918872924579241,
+                0.023842982980122218,
+                0.62788519135547827,
+                -0.48604298015713249,
+            ],
+            [
+                0.019601862069725889,
+                0.0058567487140942691,
+                0.0533916177098979,
+                -0.038095492278107823,
+            ],
+            [
+                0.30896761029373676,
+                0.026374657055707542,
+                1.0001639795815007,
+                -0.67841221607980373,
+            ],
+        ],
+        dtype=torch.float64,
+        device=device,
+    )
+    assert torch.allclose(native_order[0, 0], expected, rtol=5e-8, atol=5e-10)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_tensor_beam_flux_matches_self_contained_cdisort_fixture(device):
     from pydisort.tensor_backend import solve_tp9_flux
 

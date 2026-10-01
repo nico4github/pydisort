@@ -664,7 +664,7 @@ DISPATCH_MACRO inline void c_upbeam(disort_state *ds,
    * RHS and particular solution without guessing at the first divergence.
    */
   if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-    fprintf(stderr, "PYDISORT_TRACE_UPBEAM layer=%d rhs", lc);
+    fprintf(stderr, "PYDISORT_TRACE_UPBEAM order=%d layer=%d rhs", mazim, lc);
     for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", ZJ(iq));
     fprintf(stderr, " ylm0");
     for (iq = 0; iq < ds->nstr; iq++) fprintf(stderr, " %.17g", ylm0[iq]);
@@ -699,7 +699,7 @@ DISPATCH_MACRO inline void c_upbeam(disort_state *ds,
   c_sgesl(array,ds->nstr,ds->nstr,ipvt,zj,0);
 #ifndef __CUDA_ARCH__
   if (getenv("PYDISORT_TRACE_UPBEAM") != NULL) {
-    fprintf(stderr, "PYDISORT_TRACE_UPBEAM layer=%d solution", lc);
+    fprintf(stderr, "PYDISORT_TRACE_UPBEAM order=%d layer=%d solution", mazim, lc);
     for (iq = 1; iq <= ds->nstr; iq++) fprintf(stderr, " %.17g", ZJ(iq));
     fprintf(stderr, "\n");
   }

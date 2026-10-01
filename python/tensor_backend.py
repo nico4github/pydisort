@@ -1631,6 +1631,7 @@ def build_tp9_beam_source(
     fbeam: torch.Tensor,
     *,
     nstr: int,
+    fourier_order: int = 0,
 ) -> torch.Tensor:
     """Compute C-DISORT's plane-parallel mazim=0 beam particular solution.
 
@@ -1655,26 +1656,15 @@ def build_tp9_beam_source(
     if torch.any(umu0 <= 0):
         raise ValueError("umu0 must be positive for the plane-parallel beam")
 
+    if fourier_order < 0 or fourier_order >= nstr:
+        raise ValueError("fourier_order must lie in [0, nstr)")
     nn = nstr // 2
     mu = quadrature.cmu
-    ylm = torch.empty((nstr, nstr), dtype=mu.dtype, device=mu.device)
-    ylm0 = torch.empty((*umu0.shape, nstr), dtype=mu.dtype, device=mu.device)
-    ylm[0] = 1.0
-    ylm0[..., 0] = 1.0
-    ylm[1] = mu
-    # C-DISORT evaluates the incident direction at -UMU0 before forming its
-    # beam particular solution.  Keep this separate from the positive
-    # quadrature-angle convention used for outgoing directions.
-    ylm0[..., 1] = -umu0
-    for degree in range(2, nstr):
-        ylm[degree] = (
-            (2 * degree - 1) * mu * ylm[degree - 1]
-            - (degree - 1) * ylm[degree - 2]
-        ) / degree
-        ylm0[..., degree] = (
-            (2 * degree - 1) * (-umu0) * ylm0[..., degree - 1]
-            - (degree - 1) * ylm0[..., degree - 2]
-        ) / degree
+    ylm = associated_legendre(mu, order=fourier_order, maximum_degree=nstr - 1)
+    # C-DISORT evaluates the incident direction at -UMU0.
+    ylm0 = associated_legendre(
+        -umu0, order=fourier_order, maximum_degree=nstr - 1
+    ).movedim(0, -1)
     cc = 0.5 * torch.einsum(
         "...l,li,lj,j->...ij", optics.gl, ylm, ylm, quadrature.cwt
     )
@@ -1686,6 +1676,7 @@ def build_tp9_beam_source(
     source = (
         fbeam.unsqueeze(-1).unsqueeze(-1)
         * torch.einsum("abcl,li,abl->abci", optics.gl, ylm, ylm0)
+        * (2.0 if fourier_order else 1.0)
         / (4.0 * torch.pi)
     )
     solution = torch.linalg.solve(system, source.unsqueeze(-1)).squeeze(-1)
