@@ -212,7 +212,7 @@ uninstrumented guesses.
 
 ## Local extension rebuild
 
-For any C-DISORT header, C++, CUDA, or binding change, use `make rebuild`.
+For any C-DISORT header, C++, CUDA, or binding change, use plain `make`.
 It is the authoritative local development workflow: it builds the CMake
 libraries, rebuilds the inline C-DISORT Python extension with the venv's
 Ninja executable on `PATH`, installs the matching artifacts into the same
