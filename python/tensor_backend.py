@@ -194,6 +194,73 @@ class TensorQuadrature:
     cwt: torch.Tensor
 
 
+@timed(name="tensor_backend.associated_legendre")
+def associated_legendre(
+    mu: torch.Tensor, *, order: int, maximum_degree: int
+) -> torch.Tensor:
+    """C-DISORT-normalized ``Y_l^m(mu)`` for one Fourier order.
+
+    The result has degree on its first axis and follows ``c_legendre_poly``:
+    ``sqrt((l-m)!/(l+m)!) P_l^m``.  Entries below ``order`` are zero.
+    """
+    if order < 0 or maximum_degree < order:
+        raise ValueError("invalid associated-Legendre degree range")
+    ylm = torch.zeros(
+        (maximum_degree + 1, *mu.shape), dtype=mu.dtype, device=mu.device
+    )
+    ylm[0] = 1.0
+    if maximum_degree == 0:
+        return ylm
+    ylm[1] = mu
+    for current in range(2, maximum_degree + 1):
+        ylm[current] = (
+            (2 * current - 1) * mu * ylm[current - 1]
+            - (current - 1) * ylm[current - 2]
+        ) / current
+    for current_order in range(1, order + 1):
+        previous = ylm.clone()
+        ylm.zero_()
+        ylm[current_order] = (
+            -torch.sqrt(
+                (1.0 - 1.0 / (2 * current_order)) * (1.0 - mu.square())
+            )
+            * previous[current_order - 1]
+        )
+        if current_order < maximum_degree:
+            ylm[current_order + 1] = (
+                torch.sqrt(
+                    torch.tensor(
+                        2 * current_order + 1.0,
+                        dtype=mu.dtype,
+                        device=mu.device,
+                    )
+                )
+                * mu
+                * ylm[current_order]
+            )
+        for degree in range(current_order + 2, maximum_degree + 1):
+            upper = torch.sqrt(
+                torch.tensor(
+                    (degree - current_order) * (degree + current_order),
+                    dtype=mu.dtype,
+                    device=mu.device,
+                )
+            )
+            lower = torch.sqrt(
+                torch.tensor(
+                    (degree - current_order - 1)
+                    * (degree + current_order - 1),
+                    dtype=mu.dtype,
+                    device=mu.device,
+                )
+            )
+            ylm[degree] = (
+                (2 * degree - 1) * mu * ylm[degree - 1]
+                - lower * ylm[degree - 2]
+            ) / upper
+    return ylm
+
+
 @timed(name="tensor_backend.gaussian_quadrature")
 def gaussian_quadrature(
     nstr: int, *, device: torch.device | str
