@@ -1,0 +1,81 @@
+{
+  "nstr": 4,
+  "nmom": 4,
+  "dtau": [
+    0.15,
+    0.4,
+    0.5,
+    0.7,
+    0.65
+  ],
+  "ssalb": [
+    0.2,
+    0.55,
+    0.75,
+    0.45,
+    0.85
+  ],
+  "gg": [
+    0.0,
+    0.25,
+    0.55,
+    0.1,
+    0.7
+  ],
+  "user_tau": [
+    0.0,
+    0.15,
+    0.55,
+    1.05,
+    1.8,
+    2.4
+  ],
+  "user_mu": [
+    -0.5,
+    -0.3,
+    0.4,
+    0.5
+  ],
+  "provenance": "Native float64 C-DISORT output from test_cdisort_user_ray.release with PYDISORT_USER_RAY_FIVE=1 and PYDISORT_USER_RAY_GENERAL_SOURCE=1. Plane-parallel m=0 general source only, black boundaries, no beam, thermal, or diffuse illumination.",
+  "fisot": 0.0,
+  "computational_source": "gensrc[0, layer, stream] = 0.01 * layer * stream",
+  "user_source": "gensrcu[0, layer, user_angle] = 0.02 * layer * user_angle",
+  "radiance": [
+    [
+      0.0,
+      0.0,
+      0.18224240328660604,
+      0.24184570215019013
+    ],
+    [
+      0.009151191959768455,
+      0.021791908986457064,
+      0.23101363539268982,
+      0.2931932369491659
+    ],
+    [
+      0.05610954463985654,
+      0.10817121356364064,
+      0.30696836441487907,
+      0.37179387863347346
+    ],
+    [
+      0.11313477420059002,
+      0.19671510541686438,
+      0.3088518311518055,
+      0.37556401161879077
+    ],
+    [
+      0.145270716403164,
+      0.23851539047931009,
+      0.29082440267165144,
+      0.31423036324768283
+    ],
+    [
+      0.19061463430095443,
+      0.3020614156385906,
+      0.0,
+      0.0
+    ]
+  ]
+}

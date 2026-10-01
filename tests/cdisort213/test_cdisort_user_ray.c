@@ -49,6 +49,7 @@ void run_disort_user_ray(void) {
   const int five_layer = getenv("PYDISORT_USER_RAY_FIVE") != NULL;
   const int beam = getenv("PYDISORT_USER_RAY_BEAM") != NULL;
   const int thermal = getenv("PYDISORT_USER_RAY_THERMAL") != NULL;
+  const int general_source = getenv("PYDISORT_USER_RAY_GENERAL_SOURCE") != NULL;
   const int nlyr = five_layer ? 5 : 2;
   const double ssalb = 0.;
    int icas, lc, k;
@@ -72,7 +73,7 @@ void run_disort_user_ray(void) {
   ds.flag.onlyfl = FALSE;
   ds.flag.quiet = TRUE;
   ds.flag.spher = FALSE;
-  ds.flag.general_source = FALSE;
+  ds.flag.general_source = general_source ? TRUE : FALSE;
   ds.flag.output_uum = FALSE;
   ds.flag.intensity_correction = FALSE;
   ds.flag.old_intensity_correction = FALSE;
@@ -87,7 +88,7 @@ void run_disort_user_ray(void) {
   ds.nphi = 1;
 
   ds.bc.fbeam = beam ? M_PI : 0.;
-  ds.bc.fisot = (beam || thermal) ? 0. : 1. / M_PI;
+  ds.bc.fisot = (beam || thermal || general_source) ? 0. : 1. / M_PI;
   ds.bc.phi0 = 0.0;
   ds.bc.umu0 = 0.5;
   ds.bc.fluor = 0.;
@@ -148,6 +149,14 @@ void run_disort_user_ray(void) {
         if (thermal) {
           for (lc = 0; lc <= ds.nlyr; ++lc)
             TEMPER(lc) = 500. + 20. * lc;
+        }
+        if (general_source) {
+          for (lc = 1; lc <= ds.nlyr; ++lc) {
+            for (k = 1; k <= ds.nstr; ++k)
+              ds.gensrc[(k - 1) + (lc - 1) * ds.nstr] = 0.01 * lc * k;
+            for (k = 1; k <= ds.numu; ++k)
+              ds.gensrcu[(k - 1) + (lc - 1) * ds.numu] = 0.02 * lc * k;
+          }
         }
 
         ds.bc.albedo = 0.;
