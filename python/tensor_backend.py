@@ -1061,6 +1061,73 @@ def apply_nakajima_tanaka_correction(
     return radiance + single_scatter + ims
 
 
+@timed(name="tensor_backend.solve_tp9_beam_radiance_fourier")
+def solve_tp9_beam_radiance_fourier(
+    optics: TensorLayerOptics,
+    grid: TensorOutputGrid,
+    quadrature: TensorQuadrature,
+    user_mu: torch.Tensor,
+    phi_degrees: torch.Tensor,
+    umu0: torch.Tensor,
+    fbeam: torch.Tensor,
+    *,
+    nstr: int,
+) -> torch.Tensor:
+    """Reconstruct plane-parallel black-surface beam radiance by Fourier order."""
+    fisot = torch.zeros_like(umu0)
+    components = []
+    for order in range(nstr):
+        eigenvalues, eigenvectors = solve_reduced_eigenproblem(
+            build_reduced_eigen_matrix(
+                optics, quadrature, nstr=nstr, fourier_order=order
+            )
+        )
+        beam_source = build_tp9_beam_source(
+            optics, quadrature, umu0, fbeam, nstr=nstr, fourier_order=order
+        )
+        constants = solve_tp9_boundary_system(
+            build_tp9_boundary_system(
+                eigenvectors,
+                eigenvalues,
+                optics,
+                fisot,
+                beam_source,
+                None,
+                umu0,
+            )
+        )
+        components.append(
+            extract_tp9_user_intensity_m0(
+                interpolate_tp9_eigenvectors(
+                    eigenvectors,
+                    optics,
+                    quadrature,
+                    user_mu,
+                    fourier_order=order,
+                ),
+                eigenvalues,
+                optics,
+                grid,
+                constants,
+                user_mu,
+                fisot,
+                interpolate_tp9_user_beam_source(
+                    beam_source,
+                    optics,
+                    quadrature,
+                    user_mu,
+                    umu0,
+                    fbeam,
+                    fourier_order=order,
+                ),
+                umu0,
+            )
+        )
+    return reconstruct_tp9_azimuthal_radiance(
+        torch.stack(components, dim=-3), phi_degrees
+    )
+
+
 @timed(name="tensor_backend.extract_tp9_user_intensity_one_layer_m0")
 def extract_tp9_user_intensity_one_layer_m0(
     user_eigenvectors: torch.Tensor,
