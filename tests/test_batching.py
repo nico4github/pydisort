@@ -44,7 +44,7 @@ def build(ncol, nwave):
     op.ds().nphase = NSTR
     op.user_tau(np.array(USER_TAU))
     op.user_mu(np.array(USER_MU))
-    op.user_phi(np.array([0.0]))
+    op.user_phi(np.array([36.0]))
     op.accur(0.0)
     op.ncol(ncol)
     op.nwave(nwave)

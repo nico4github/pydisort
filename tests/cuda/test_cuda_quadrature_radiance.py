@@ -4,7 +4,6 @@ import math
 
 import pytest
 import torch
-
 from conftest import requires_cuda
 from pydisort import Disort, DisortOptions, scattering_moments
 
@@ -18,7 +17,7 @@ def _solve(backend):
     options.user_tau([0.0, 1.0])
     # C-DISORT replaces this requested count with nstr when usrang is clear.
     options.user_mu([0.0])
-    options.user_phi([0.0, 90.0])
+    options.user_phi([0.0, 36.0, 90.0])
     options.ncol(1)
     options.nwave(1)
 
@@ -41,7 +40,7 @@ def _solve(backend):
 def test_cuda_quadrature_radiance_is_explicitly_unsupported():
     """CPU exposes nstr angles; CUDA fails clearly because it retains no radiance grid."""
     cpu = _solve("cpu")
-    assert cpu.shape == (1, 1, 2, 2, 4)
+    assert cpu.shape == (1, 1, 3, 2, 4)
 
     with pytest.raises(
         NotImplementedError, match="gather_rad is not implemented for CUDA"

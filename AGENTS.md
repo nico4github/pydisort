@@ -45,6 +45,11 @@ new and existing radiance fixture as it is touched, and require CPU/H100 CUDA
 parity for both pairs. Do not use mirrored-angle coverage as the sole evidence
 for either sign branch.
 
+Every azimuth-dependent reference or diagnostic must include at least one
+nontrivial azimuth. Retain published angles where applicable, and add values
+such as 12, 36, 80, or 100 degrees; 0, 90, and 180 degrees alone are not
+sufficient evidence for Fourier reconstruction.
+
 Reference tests and their published inputs are immutable baselines. Never
 modify a reference test case for debugging, tracing, benchmarking, or a new
 parity scenario. Add a separate, clearly named diagnostic or regression test

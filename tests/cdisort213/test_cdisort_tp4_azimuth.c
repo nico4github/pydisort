@@ -21,7 +21,7 @@ int main(void) {
   ds.flag.intensity_correction = TRUE;
   ds.flag.old_intensity_correction = TRUE;
   ds.nstr = ds.nphase = ds.nmom = 32;
-  ds.nlyr = 1; ds.ntau = 3; ds.numu = 6; ds.nphi = 3;
+  ds.nlyr = 1; ds.ntau = 3; ds.numu = 6; ds.nphi = 7;
   ds.bc.fbeam = M_PI; ds.bc.fisot = ds.bc.albedo = ds.bc.fluor = 0.;
   ds.bc.umu0 = .5; ds.bc.phi0 = 0.; ds.flag.brdf_type = BRDF_NONE;
   c_disort_state_alloc(&ds); c_disort_out_alloc(&ds, &out);
@@ -30,7 +30,8 @@ int main(void) {
   ds.utau[0] = 0.; ds.utau[1] = .5; ds.utau[2] = 1.;
   ds.umu[0] = -1.; ds.umu[1] = -.5; ds.umu[2] = -.1;
   ds.umu[3] = .1; ds.umu[4] = .5; ds.umu[5] = 1.;
-  ds.phi[0] = 0.; ds.phi[1] = 90.; ds.phi[2] = 180.;
+  ds.phi[0] = 0.; ds.phi[1] = 12.; ds.phi[2] = 36.;
+  ds.phi[3] = 80.; ds.phi[4] = 90.; ds.phi[5] = 100.; ds.phi[6] = 180.;
   c_disort(&ds, &out, c_planck_func2);
   for (int k = 0; k < ds.nstr; ++k) {
     fprintf(stderr, "PYDISORT_TRACE_TP4_UUM order=%d", k);

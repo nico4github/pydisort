@@ -4,7 +4,6 @@ import pytest
 import torch
 from pydisort import Disort, DisortOptions
 
-
 DTYPE = torch.float64
 NSTR = 4
 NLYR = 1
@@ -19,7 +18,7 @@ def make_options(computational=None, user=None, backend="cpu"):
     )
     options.ds().nlyr = NLYR
     options.ds().nstr = options.ds().nmom = options.ds().nphase = NSTR
-    options.user_tau([0.0, 0.2]).user_mu([0.5]).user_phi([0.0])
+    options.user_tau([0.0, 0.2]).user_mu([0.5]).user_phi([12.0])
     if computational is not None:
         options.general_source(computational, user)
     return options

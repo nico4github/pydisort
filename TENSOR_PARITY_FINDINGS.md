@@ -266,3 +266,7 @@ deferred.
   implement that correction. Therefore TP4c final-radiance parity is not yet
   declared supported; the next implementation unit is a separately traced,
   CPU-first port of the correction, followed by a CPU/CUDA fixture gate.
+
+- The TP4c diagnostic also retains the published 0/90/180-degree outputs but
+  now adds 12/36/80/100 degrees. These nontrivial angles are mandatory for
+  every future azimuth-dependent fixture and diagnostic.

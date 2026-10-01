@@ -42,7 +42,7 @@ def build(user_tau, upward=0, usrtau=True, ncol=1):
     if usrtau:
         op.user_tau(np.array(user_tau))
     op.user_mu(np.array(USER_MU))
-    op.user_phi(np.array([0.0]))
+    op.user_phi(np.array([36.0]))
     op.accur(0.0)
     op.ncol(ncol)
     op.nwave(1)
@@ -199,7 +199,7 @@ def test_quadrature_radiance_uses_allocated_angle_count():
     op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
     op.user_tau(np.array([0.0, 1.0]))
     op.user_mu(np.array([0.0]))
-    op.user_phi(np.array([0.0, 90.0]))
+    op.user_phi(np.array([0.0, 36.0, 90.0]))
     op.ncol(1)
     op.nwave(1)
 
@@ -218,7 +218,7 @@ def test_quadrature_radiance_uses_allocated_angle_count():
     )
 
     radiance = ds.gather_rad()
-    assert_equal(radiance.shape, (1, 1, 2, 2, 4))
+    assert_equal(radiance.shape, (1, 1, 3, 2, 4))
     assert torch.isfinite(radiance).all()
 
 
@@ -239,7 +239,7 @@ def test_gather_fourier_returns_cdisort_azimuthal_components():
     op.ds().nstr = op.ds().nmom = op.ds().nphase = 4
     op.user_tau(np.array([0.0, 1.0]))
     op.user_mu(np.array([-0.5, 0.5]))
-    op.user_phi(np.array([0.0]))
+    op.user_phi(np.array([36.0]))
     op.fourier_components()
     solver = Disort(op)
 
@@ -289,7 +289,7 @@ def test_hapke_brdf_matches_cdisort_problem_6d_fluxes():
     op.ds().nstr = op.ds().nmom = op.ds().nphase = 16
     op.user_tau(np.array([0.0, 0.5, 1.0]))
     op.user_mu(np.array([-1.0, -0.1, 0.1, 1.0]))
-    op.user_phi(np.array([90.0]))
+    op.user_phi(np.array([36.0]))
     op.hapke_brdf()
     solver = Disort(op)
 
