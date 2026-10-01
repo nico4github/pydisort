@@ -86,3 +86,30 @@ batched operation across solves, with structure-of-arrays work storage. A
 prototype must first retain float64 CPU/CUDA agreement and be timed against the
 1,024 x 17 TP9 baseline. Replacing the current lane-local C-DISORT call in one
 unmeasured rewrite would be too high-risk.
+
+## Tensor reconstruction baseline — 2026-10-01
+
+The parity-complete pure-PyTorch TP9 flux path now has a reproducible
+`benchmarks/tensor_tp9_baseline.py` runner. It constructs inputs directly on
+the requested device, warms up outside the measured region, times the complete
+`solve_tp9_flux` call with `TimingCollector`, and appends each stage and its
+root `TOTAL` to the bridge report directory. It makes no host/device transfer
+inside the steady-state region.
+
+The initial H100 float64 diffuse TP9-scaled measurements are recorded in
+`../disort-pyf/benchmarks/PLATO-Ganymede/testproblem09_tensor_reconstruction_timing.txt`:
+
+| Shape | Total CUDA event time | Dominant stage | Evidence |
+| --- | ---: | ---: | --- |
+| 1 wavelength x 1 column x 100 layers x 32 streams | 0.100825 s | reduced eigensolve, 0.080604 s | one warmed run |
+| 10 wavelengths x 1 column x 100 layers x 32 streams | 0.8897--0.8962 s | reduced eigensolve, 0.7789 s; boundary solve, 0.1024 s | five warmed runs |
+
+This is a first correctness-preserving baseline, not a throughput result for
+1,000 channels. The present representation materializes a dense
+`(nlyr*nstr)^2` boundary system per batch element: at 100 layers and 32 streams
+that is about 81.9 MiB of float64 coefficients per channel before solver
+workspace. A direct 1,000-channel batch would therefore exceed H100 memory
+once matrix and factorization workspace are included. The next optimization
+must retain the existing parity gates while using the existing block-banded
+structure and bounded channel chunks; transfer caching is explicitly not the
+bottleneck and will not be retried.
