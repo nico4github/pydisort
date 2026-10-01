@@ -1485,6 +1485,7 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
         "tensor_user_ray_beam_five_layer_reference.json",
         "tensor_user_ray_thermal_five_layer_reference.json",
         "tensor_user_ray_general_source_five_layer_reference.json",
+        "tensor_user_ray_combined_five_layer_reference.json",
     ],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -1658,6 +1659,63 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
             constants = solve_tp9_boundary_system(
                 build_tp9_boundary_system(vectors, values, optics, fisot)
             )
+    if "fbeam" in fixture and "temperature" in fixture:
+        temperature = torch.tensor(
+            fixture["temperature"], dtype=torch.float64, device=device
+        ).view(1, 1, -1)
+        lower = torch.tensor(
+            fixture["wavenumber_lower"], dtype=torch.float64, device=device
+        )
+        upper = torch.tensor(
+            fixture["wavenumber_upper"], dtype=torch.float64, device=device
+        )
+        xr0, xr1 = prepare_thermal_coefficients(
+            temperature, optics, lower, upper
+        )
+        thermal0, thermal1 = build_tp9_thermal_source(
+            optics, quadrature, xr0, xr1, nstr=4
+        )
+        computational = torch.zeros(
+            (1, 1, 4, nlyr, 4), dtype=torch.float64, device=device
+        )
+        user_source = torch.zeros(
+            (1, 1, nlyr, user_mu.numel()), dtype=torch.float64, device=device
+        )
+        for layer in range(nlyr):
+            for angle in range(4):
+                computational[0, 0, 0, layer, angle] = (
+                    0.01 * (layer + 1) * (angle + 1)
+                )
+                user_source[0, 0, layer, angle] = (
+                    0.02 * (layer + 1) * (angle + 1)
+                )
+        general_source = build_tp9_general_source(
+            optics, quadrature, computational, nstr=4
+        )
+        constants = solve_tp9_boundary_system(
+            build_tp9_boundary_system(
+                vectors,
+                values,
+                optics,
+                fisot,
+                beam_source,
+                general_source,
+                umu0,
+                thermal0,
+                thermal1,
+                None,
+                None,
+                None,
+                quadrature,
+                fbeam,
+            )
+        )
+        user_thermal0, user_thermal1 = interpolate_tp9_user_thermal_source_m0(
+            thermal0, thermal1, optics, quadrature, user_mu, xr0, xr1
+        )
+        user_general_source = interpolate_tp9_user_general_source_m0(
+            general_source, optics, quadrature, user_mu, user_source
+        )
     actual = extract_tp9_user_intensity_m0(
         interpolate_tp9_eigenvectors_m0(vectors, optics, quadrature, user_mu),
         values,
