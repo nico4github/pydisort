@@ -394,7 +394,8 @@ def nakajima_tanaka_single_scatter_correction(
     for phi in range(nphi):
         for angle in range(numu):
             exact = nakajima_tanaka_single_scatter(
-                exact_phase[..., phi, angle],
+                exact_phase[..., phi, angle]
+                / (1.0 - optics.flyr * atmosphere.ssalb),
                 atmosphere.ssalb,
                 optics.taucpr,
                 user_tau,
@@ -412,6 +413,105 @@ def nakajima_tanaka_single_scatter_correction(
                 fbeam,
             )
             result[..., phi, :, angle] = (exact - scaled).squeeze(-1)
+    return result
+
+
+@timed(name="tensor_backend.nakajima_tanaka_ims")
+def nakajima_tanaka_ims(
+    atmosphere: TensorAtmosphere,
+    optics: TensorLayerOptics,
+    user_tau: torch.Tensor,
+    user_mu: torch.Tensor,
+    scattering_cosine: torch.Tensor,
+    umu0: torch.Tensor,
+    fbeam: torch.Tensor,
+    *,
+    nstr: int,
+) -> torch.Tensor:
+    """Vectorize the original C-DISORT aureole IMS correction."""
+    batch = atmosphere.dtauc.shape[:2]
+    nphi, numu = scattering_cosine.shape[-2:]
+    result = torch.zeros(
+        (*batch, nphi, user_tau.numel(), numu),
+        dtype=atmosphere.dtauc.dtype,
+        device=atmosphere.dtauc.device,
+    )
+    for level, depth in enumerate(user_tau):
+        thickness = torch.minimum(
+            torch.clamp_min(
+                depth
+                - torch.cat(
+                    (
+                        torch.zeros_like(optics.tauc[..., :1]),
+                        optics.tauc[..., :-1],
+                    ),
+                    dim=-1,
+                ),
+                0.0,
+            ),
+            atmosphere.dtauc,
+        )
+        stau = thickness.sum(-1)
+        wbar = (atmosphere.ssalb * thickness).sum(-1) / stau.clamp_min(1e-4)
+        fbar = (atmosphere.ssalb * optics.flyr * thickness).sum(-1) / (
+            (atmosphere.ssalb * thickness).sum(-1).clamp_min(1e-4)
+        )
+        for angle, mu in enumerate(user_mu):
+            if mu >= 0 or torch.abs(
+                torch.acos(-umu0) - torch.acos(mu)
+            ).max() > torch.deg2rad(torch.tensor(10.0)):
+                continue
+            gbar = torch.ones_like(wbar)
+            pspike = torch.ones(
+                (*batch, nphi), dtype=wbar.dtype, device=wbar.device
+            )
+            legendre = [
+                torch.ones_like(scattering_cosine[..., :, angle]),
+                scattering_cosine[..., :, angle],
+            ]
+            for degree in range(2, atmosphere.pmom.shape[-1]):
+                legendre.append(
+                    (
+                        (2 * degree - 1)
+                        * scattering_cosine[..., :, angle]
+                        * legendre[-1]
+                        - (degree - 1) * legendre[-2]
+                    )
+                    / degree
+                )
+            for degree, polynomial in enumerate(legendre[1:], start=1):
+                if degree >= nstr:
+                    numerator = (
+                        atmosphere.pmom[..., degree]
+                        * atmosphere.ssalb
+                        * thickness
+                    ).sum(-1)
+                    gbar = numerator / (fbar * wbar * stau).clamp_min(1e-4)
+                pspike += (
+                    (2 * degree + 1)
+                    * gbar.unsqueeze(-1)
+                    * (2.0 - gbar.unsqueeze(-1))
+                    * polynomial
+                )
+            umu0p = umu0 / (1.0 - fbar * wbar)
+            x = (umu0p + mu) / (-umu0p * mu)
+            xi = torch.where(
+                x.abs() > 1e-14,
+                (
+                    (depth * x - 1.0) * torch.exp(-depth / umu0p)
+                    + torch.exp(depth / mu)
+                )
+                / (x.square() * (-umu0p * mu)),
+                depth.square() * torch.exp(depth / mu) / (-2.0 * umu0p * mu),
+            )
+            result[..., :, level, angle] = (
+                -fbeam.unsqueeze(-1)
+                / (4.0 * torch.pi)
+                * (fbar * wbar).square().unsqueeze(-1)
+                / (1.0 - fbar * wbar).unsqueeze(-1)
+                * pspike
+                * xi.unsqueeze(-1)
+            )
     return result
 
 
