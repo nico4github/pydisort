@@ -203,7 +203,7 @@ increments without interrupting execution.
 Do a bounded source-level audit first. If a C-DISORT/tensor parity divergence
 remains unresolved after that audit, add a narrowly scoped, opt-in CPU trace to
 the relevant C stage before making further speculative changes. Record the
-trace in `cdisort_patches/`, document it in `TENSOR_PARITY_FINDINGS.md`, and
+trace in `cdisort_patches/`, document it in `../torchdisort/TENSOR_PARITY_FINDINGS.md`, and
 prepare all trace points before one rebuild. Compare the traced C intermediate
 values with the tensor stage. Retain the opt-in diagnostic and its patch after
 the investigation: it is dormant outside its environment variable and avoids
