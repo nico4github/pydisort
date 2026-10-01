@@ -278,3 +278,8 @@ one-layer, `g=0.95`, `ssalb=0.99` Henyey--Greenstein atmosphere while retaining
 its seven azimuths and solar-aureole rays. The retained native IMS trace has a
 maximum magnitude of `3.5138445831754757`, so it is the primary IMS parity
 gate; published TP4c remains the end-to-end correction gate.
+
+The composed tensor exact-minus-delta-M and IMS correction matches the stored
+native TP4c correction delta across seven azimuths, three depths, and six user
+angles within `7.8e-6`. The remaining increment is to join this correction to
+the reconstructed TP4c raw radiance in one final CPU/H100 gate.
