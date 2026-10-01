@@ -213,3 +213,31 @@ float64 parity gates pass. It is not a second solver rewrite.
   TP9c CPU/CUDA fixtures to required passes.
 
 - A nonuniform two-layer general-source trace confirms both C ZZG vectors and every source-bearing c_solve0 boundary RHS entry agree with the tensor path at float64 rounding. The independent C and torch eigensystem/boundary solves produce final fluxes within 5e-8; the stored two-layer fixture therefore uses 1e-7 absolute tolerance. The one-layer analytical source gate remains at 1e-12.
+
+## Fourier reconstruction update (2026-10-01)
+
+- Five-layer beam-only user-angle parity is now complete for every resolved
+  `nstr=4` component, `m=0..3`, on CPU and H100 CUDA. The nonzero components
+  use C-DISORT-normalized associated Legendre functions, the Fourier-specific
+  reduced eigenproblem, beam particular solution, boundary solve, user-angle
+  eigenvector interpolation, and ray integration.
+- The new m=1 end-to-end gate has a maximum independent C/PyTorch difference
+  of `1.28e-9`; m=2 and m=3 are below `5.94e-10` and `1.89e-10` respectively.
+  The m=1 particular-solution trace independently agrees within `2e-8` before
+  the boundary solve.
+- `PYDISORT_TRACE_UPBEAM` now labels both RHS and solution with Fourier order.
+  `PYDISORT_TRACE_AZIMUTH` prints native final azimuth-summed radiance. Both
+  are opt-in CPU diagnostics retained for future parity work.
+- Native final radiance at phi=60 is the cosine sum of the raw `UUM` Fourier
+  components. The older fixture's `radiance` field is its m=0 component, so it
+  remains unchanged as an immutable reference; the final summation receives a
+  separate fixture and pytest gate next.
+
+## Active next diagnostic
+
+Add device-resident cosine reconstruction for the saved m=0..3 components,
+record the dedicated native final-radiance fixture, and gate it on CPU/H100.
+Then run the same staged parity path against the azimuth-dependent published
+reference case before introducing Fourier surface coupling. Lambertian remains
+m=0 only by construction; Hapke and other non-Lambertian BRDF coupling remain
+deferred.

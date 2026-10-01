@@ -52,3 +52,14 @@ Step 3 has accepted its beam-only m=0 user-angle fixture on CPU and CUDA.
 The next source-only increments are thermal, then general source. Each fixture must be emitted by a dedicated native diagnostic with its
 input contract stored alongside the values before a combined-source gate is
 introduced. Fourier m>0 work remains after those source gates.
+
+## Progress update (2026-10-01)
+
+Steps 2 and 3 are complete: five-layer m=0 source-free, beam, thermal,
+general-source, combined, and Lambertian user-ray fixtures all pass on CPU and
+H100 CUDA. Step 4 has completed the component-level reconstruction for the
+beam-only five-layer diagnostic: m=0 through m=3 each have native float64
+fixtures and CPU/CUDA pytest gates. The active increment is final cosine
+summation at arbitrary azimuth using the retained native final-radiance trace;
+only after that gate passes will the implementation move to an
+azimuth-dependent published reference case.
