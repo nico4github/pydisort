@@ -48,6 +48,7 @@ void run_disort_user_ray(void) {
   const int nstr = 4;
   const int five_layer = getenv("PYDISORT_USER_RAY_FIVE") != NULL;
   const int beam = getenv("PYDISORT_USER_RAY_BEAM") != NULL;
+  const int thermal = getenv("PYDISORT_USER_RAY_THERMAL") != NULL;
   const int nlyr = five_layer ? 5 : 2;
   const double ssalb = 0.;
    int icas, lc, k;
@@ -86,17 +87,22 @@ void run_disort_user_ray(void) {
   ds.nphi = 1;
 
   ds.bc.fbeam = beam ? M_PI : 0.;
-  ds.bc.fisot = beam ? 0. : 1. / M_PI;
+  ds.bc.fisot = (beam || thermal) ? 0. : 1. / M_PI;
   ds.bc.phi0 = 0.0;
   ds.bc.umu0 = 0.5;
   ds.bc.fluor = 0.;
+  ds.bc.ttemp = 0.;
+  ds.bc.btemp = 0.;
+  ds.bc.temis = 0.;
+  ds.wvnmlo = 999.;
+  ds.wvnmhi = 1000.;
 
   ds.flag.brdf_type = BRDF_NONE;
 
   for (icas = 1; icas <= ncase; ++icas) {
     switch (icas) {
       case 1:
-        ds.flag.planck = FALSE;
+        ds.flag.planck = thermal ? TRUE : FALSE;
 
         /* Allocate memory */
         c_disort_state_alloc(&ds);
@@ -138,6 +144,10 @@ void run_disort_user_ray(void) {
           const double gg[] = {0., 0.25, 0.55, 0.1, 0.7};
           c_getmom(five_layer ? HENYEY_GREENSTEIN : ISOTROPIC,
                    five_layer ? gg[lc - 1] : 0., ds.nmom, &PMOM(0, lc));
+        }
+        if (thermal) {
+          for (lc = 0; lc <= ds.nlyr; ++lc)
+            TEMPER(lc) = 500. + 20. * lc;
         }
 
         ds.bc.albedo = 0.;
