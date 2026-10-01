@@ -287,3 +287,15 @@ transport. The TP4c trace driver records raw ``UUM`` terms and final corrected
 parity until the single-scattering and IMS terms each have CPU/H100 fixture
 gates. The immutable published TP4c source remains unchanged; the separate
 ``test_cdisort_tp4_azimuth`` diagnostic is the C-DISORT comparison basis.
+
+TP4c corrected tensor radiance
+------------------------------
+
+The tensor backend now passes the native C-DISORT TP4c corrected-radiance
+fixture on CPU and H100 CUDA. The fixture uses a black lower boundary,
+32 streams, seven azimuths (including 12, 36, 80, and 100 degrees), three
+optical-depth outputs, and six user directions. It reconstructs all Fourier
+orders on device, then applies the original Nakajima--Tanaka exact-minus-
+delta-M and IMS corrections. The stored native comparison passes with
+``rtol=3e-6`` and ``atol=1e-5`` (maximum observed difference ``8.3e-6``).
+Hapke/Fourier surface coupling remains a separately deferred capability.

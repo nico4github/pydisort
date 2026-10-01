@@ -69,3 +69,13 @@ native phi=60-degree fixture on CPU and H100 CUDA. The next approved stage is
 the azimuth-dependent published reference case with a black Lambertian lower
 boundary. It will first record raw components and final radiance, then promote
 the full result to pytest before any Fourier-order surface coupling.
+
+## TP4c completion (2026-10-01)
+
+Step 4 is complete for the black-surface beam path, including C-DISORT's
+original Nakajima--Tanaka intensity correction. The self-contained TP4c final
+fixture covers seven azimuths, three output depths, and six user directions;
+its CPU and H100 CUDA gate passes at `rtol=3e-6, atol=1e-5`. This completes
+corrected azimuth-dependent radiance before performance work. Fourier surface
+coupling for Hapke remains the next capability increment, deferred from this
+optimization milestone.

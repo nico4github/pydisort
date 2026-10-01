@@ -2104,3 +2104,127 @@ def test_tp9_azimuthal_reconstruction_matches_native_trace(device):
         reference["radiance"], dtype=torch.float64, device=device
     )
     assert torch.allclose(actual[0, 0], expected, rtol=0.0, atol=2e-16)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tp4c_corrected_azimuthal_radiance_matches_native_cdisort(device):
+    """Gate the full TP4c Fourier reconstruction and correction on both devices."""
+    from pydisort.tensor_backend import (
+        apply_nakajima_tanaka_correction,
+        gaussian_quadrature,
+        nakajima_tanaka_ims,
+        nakajima_tanaka_layer_phase,
+        nakajima_tanaka_single_scatter_correction,
+        prepare_layer_optics,
+        prepare_output_grid,
+        solve_tp9_beam_radiance_fourier,
+    )
+
+    flux_fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_tp4_flux_reference.json"
+        ).read_text()
+    )["cases"][1]
+    final_fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_tp4_azimuth_final_reference.json"
+        ).read_text()
+    )
+    correction_fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_tp4_correction_reference.json"
+        ).read_text()
+    )
+    phi = torch.tensor(
+        final_fixture["phi_degrees"], dtype=torch.float64, device=device
+    )
+    prop = torch.zeros(
+        (1, phi.numel(), 1, 34), dtype=torch.float64, device=device
+    )
+    prop[..., 0] = flux_fixture["dtauc"][0]
+    prop[..., 1] = flux_fixture["ssalb"][0]
+    prop[..., 2:] = torch.tensor(
+        flux_fixture["moments"], dtype=torch.float64, device=device
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=32, nmom=32)
+    optics = prepare_layer_optics(atmosphere, nstr=32, deltam=True)
+    user_tau = torch.tensor(
+        flux_fixture["user_tau"], dtype=torch.float64, device=device
+    )
+    grid = prepare_output_grid(user_tau, atmosphere, optics, deltam=True)
+    user_mu = torch.tensor(
+        [-1.0, -0.5, -0.1, 0.1, 0.5, 1.0],
+        dtype=torch.float64,
+        device=device,
+    )
+    umu0 = torch.full(
+        (1, phi.numel()), 0.5, dtype=torch.float64, device=device
+    )
+    fbeam = torch.full_like(umu0, torch.pi)
+    radiance = solve_tp9_beam_radiance_fourier(
+        optics,
+        grid,
+        gaussian_quadrature(32, device=device),
+        user_mu,
+        phi.view(1, -1),
+        umu0,
+        fbeam,
+        nstr=32,
+    )
+    cosine = -umu0[..., None, None] * user_mu + torch.sqrt(
+        1.0 - umu0[..., None, None].square()
+    ) * torch.sqrt(1.0 - user_mu.square()) * torch.cos(
+        phi.view(1, -1, 1, 1) * torch.pi / 180.0
+    )
+    exact_phase = nakajima_tanaka_layer_phase(atmosphere.pmom, cosine)
+    scaled_moments = torch.cat(
+        (
+            torch.ones_like(atmosphere.pmom[..., :1]),
+            (atmosphere.pmom[..., 1:] - optics.flyr.unsqueeze(-1))
+            / (1.0 - optics.flyr).unsqueeze(-1),
+        ),
+        dim=-1,
+    )
+    scaled_phase = nakajima_tanaka_layer_phase(scaled_moments, cosine)
+    single_scatter = nakajima_tanaka_single_scatter_correction(
+        exact_phase,
+        scaled_phase,
+        atmosphere,
+        optics,
+        user_tau,
+        user_mu,
+        umu0,
+        fbeam,
+    ).squeeze(-3)
+    ims = nakajima_tanaka_ims(
+        atmosphere,
+        optics,
+        user_tau,
+        user_mu,
+        cosine,
+        umu0,
+        fbeam,
+        nstr=32,
+    ).squeeze(-3)
+    expected_correction = torch.tensor(
+        correction_fixture["correction"], dtype=torch.float64, device=device
+    ).unsqueeze(0)
+    expected = torch.tensor(
+        final_fixture["radiance"], dtype=torch.float64, device=device
+    ).unsqueeze(0)
+
+    assert torch.allclose(
+        single_scatter + ims, expected_correction, rtol=3e-6, atol=1e-5
+    )
+    assert torch.allclose(
+        apply_nakajima_tanaka_correction(radiance, single_scatter, ims),
+        expected,
+        rtol=3e-6,
+        atol=1e-5,
+    )

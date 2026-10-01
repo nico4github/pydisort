@@ -283,3 +283,22 @@ The composed tensor exact-minus-delta-M and IMS correction matches the stored
 native TP4c correction delta across seven azimuths, three depths, and six user
 angles within `7.8e-6`. The remaining increment is to join this correction to
 the reconstructed TP4c raw radiance in one final CPU/H100 gate.
+
+## TP4c corrected-radiance parity (2026-10-01)
+
+- The retained native `PYDISORT_TRACE_TP4_UU` result is now stored in
+  `tests/fixtures/tensor_tp4_azimuth_final_reference.json`. It contains all
+  seven azimuths (0, 12, 36, 80, 90, 100, 180 degrees), three depths, and six
+  user cosines from the separate immutable-input TP4c diagnostic.
+- `solve_tp9_beam_radiance_fourier` reconstructs every Fourier order in one
+  batched tensor calculation. Its beam source interpolation now preserves the
+  independent column axis, so a batch of azimuth columns uses its own direct
+  beam source rather than broadcasting one column across the batch.
+- `test_tp4c_corrected_azimuthal_radiance_matches_native_cdisort` applies the
+  exact-minus-delta-M single-scattering and IMS terms to that raw solution.
+  It passes on CPU and H100 CUDA with `rtol=3e-6, atol=1e-5`; the measured
+  maximum absolute independent C/PyTorch envelope is `8.3e-6`.
+- TP4c is therefore the first full corrected, azimuth-dependent tensor
+  radiance reference promoted to a required CPU/CUDA pytest gate. The
+  next radiance capability is non-Lambertian Fourier surface coupling; it is
+  deferred while the project moves to the approved optimization phase.

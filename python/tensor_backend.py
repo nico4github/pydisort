@@ -1235,9 +1235,9 @@ def interpolate_tp9_user_beam_source(
     psi = 0.5 * optics.gl * projected
     direct = (
         (2.0 if fourier_order else 1.0)
-        * fbeam.unsqueeze(-1)
+        * fbeam.unsqueeze(-1).unsqueeze(-1)
         * optics.gl
-        * ylm_beam
+        * ylm_beam.unsqueeze(-2)
         / (4.0 * torch.pi)
     )
     return torch.einsum("lu,...l->...u", ylm_user, psi + direct)
