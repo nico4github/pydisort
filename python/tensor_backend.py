@@ -261,6 +261,25 @@ def associated_legendre(
     return ylm
 
 
+@timed(name="tensor_backend.nakajima_tanaka_phase")
+def nakajima_tanaka_phase(
+    pmom: torch.Tensor, cosine: torch.Tensor
+) -> torch.Tensor:
+    """Evaluate C-DISORT's unscaled phase-function recurrence."""
+    degree = pmom.shape[-1] - 1
+    values = [torch.ones_like(cosine), cosine]
+    for ell in range(2, degree + 1):
+        values.append(
+            ((2 * ell - 1) * cosine * values[-1] - (ell - 1) * values[-2])
+            / ell
+        )
+    legendre = torch.stack(values[: degree + 1], dim=-1)
+    weights = (
+        2 * torch.arange(degree + 1, dtype=pmom.dtype, device=pmom.device) + 1
+    )
+    return torch.einsum("...l,...l,l->...", pmom, legendre, weights)
+
+
 @timed(name="tensor_backend.gaussian_quadrature")
 def gaussian_quadrature(
     nstr: int, *, device: torch.device | str

@@ -179,6 +179,16 @@ def test_reduced_eigen_matrix_accepts_a_nonzero_fourier_order():
     assert torch.isfinite(matrix.matrix).all()
 
 
+def test_nakajima_tanaka_phase_matches_legendre_sum():
+    from pydisort.tensor_backend import nakajima_tanaka_phase
+
+    pmom = torch.tensor([1.0, 0.3, 0.2], dtype=torch.float64)
+    cosine = torch.tensor(0.4, dtype=torch.float64)
+    actual = nakajima_tanaka_phase(pmom, cosine)
+    expected = 1.0 + 3.0 * 0.3 * 0.4 + 5.0 * 0.2 * (3.0 * 0.4**2 - 1.0) / 2.0
+    assert torch.allclose(actual, torch.tensor(expected, dtype=torch.float64))
+
+
 def test_reduced_eigensolve_is_batched_and_real():
     from pydisort.tensor_backend import solve_reduced_eigenproblem
 
