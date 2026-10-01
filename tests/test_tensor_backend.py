@@ -189,6 +189,17 @@ def test_nakajima_tanaka_phase_matches_legendre_sum():
     assert torch.allclose(actual, torch.tensor(expected, dtype=torch.float64))
 
 
+def test_nakajima_tanaka_layer_phase_preserves_layer_and_angle_axes():
+    from pydisort.tensor_backend import nakajima_tanaka_layer_phase
+
+    pmom = torch.tensor([[[1.0, 0.2], [1.0, 0.6]]], dtype=torch.float64)
+    cosine = torch.tensor([[[0.25, 0.75]]], dtype=torch.float64)
+    actual = nakajima_tanaka_layer_phase(pmom, cosine)
+    expected = 1.0 + 3.0 * pmom[..., 1, None, None] * cosine[..., None, :, :]
+    assert actual.shape == (1, 2, 1, 2)
+    assert torch.allclose(actual, expected)
+
+
 def test_nakajima_tanaka_single_scatter_matches_one_layer_formula():
     from pydisort.tensor_backend import nakajima_tanaka_single_scatter
 

@@ -280,6 +280,32 @@ def nakajima_tanaka_phase(
     return torch.einsum("...l,...l,l->...", pmom, legendre, weights)
 
 
+@timed(name="tensor_backend.nakajima_tanaka_layer_phase")
+def nakajima_tanaka_layer_phase(
+    pmom: torch.Tensor, cosine: torch.Tensor
+) -> torch.Tensor:
+    """Evaluate phase functions for every batch, layer, azimuth, and ray."""
+    if pmom.ndim < 2 or cosine.ndim < 2:
+        raise ValueError(
+            "phase moments and scattering cosines need batch axes"
+        )
+    degree = pmom.shape[-1] - 1
+    values = [torch.ones_like(cosine), cosine]
+    for ell in range(2, degree + 1):
+        values.append(
+            ((2 * ell - 1) * cosine * values[-1] - (ell - 1) * values[-2])
+            / ell
+        )
+    legendre = torch.stack(values[: degree + 1], dim=-1)
+    weights = (
+        2 * torch.arange(degree + 1, dtype=pmom.dtype, device=pmom.device) + 1
+    )
+    return torch.sum(
+        pmom[..., :, None, None, :] * legendre[..., None, :, :, :] * weights,
+        dim=-1,
+    )
+
+
 @timed(name="tensor_backend.nakajima_tanaka_single_scatter")
 def nakajima_tanaka_single_scatter(
     phase: torch.Tensor,
