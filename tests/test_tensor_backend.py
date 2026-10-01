@@ -564,8 +564,9 @@ def test_tp9_fourier_order_one_beam_source_matches_native_trace(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_tp9_fourier_order_one_user_rays_match_cdisort(device):
-    """Gate the first complete nonzero Fourier component against C-DISORT."""
+@pytest.mark.parametrize("order", [1, 2, 3])
+def test_tp9_nonzero_fourier_user_rays_match_cdisort(device, order):
+    """Gate each resolved nonzero Fourier component against C-DISORT."""
     from pydisort.tensor_backend import (
         build_reduced_eigen_matrix,
         build_tp9_beam_source,
@@ -614,7 +615,6 @@ def test_tp9_fourier_order_one_user_rays_match_cdisort(device):
         (1, 1), fixture["fbeam"], dtype=torch.float64, device=device
     )
     fisot = torch.zeros((1, 1), dtype=torch.float64, device=device)
-    order = 1
     eigenvalues, eigenvectors = solve_reduced_eigenproblem(
         build_reduced_eigen_matrix(
             optics, quadrature, nstr=4, fourier_order=order

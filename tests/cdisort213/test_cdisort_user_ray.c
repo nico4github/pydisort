@@ -176,6 +176,13 @@ void run_disort_user_ray(void) {
         fprintf(stderr, "\n");
       }
     }
+    if (getenv("PYDISORT_TRACE_AZIMUTH") != NULL) {
+      fprintf(stderr, "PYDISORT_TRACE_AZIMUTH");
+      for (lc = 1; lc <= ds.ntau; ++lc)
+        for (int iu = 1; iu <= ds.numu; ++iu)
+          fprintf(stderr, " %.17g", out.uu[(iu - 1) + (lc - 1) * ds.numu]);
+      fprintf(stderr, "\n");
+    }
 
     /* Clean up */
     c_disort_out_free(&ds, &good);
