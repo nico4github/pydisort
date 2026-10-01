@@ -238,6 +238,13 @@ DISPATCH_MACRO inline void c_intensity_correction(disort_state  *ds,
           ussndm        = c_single_scat(dither,LAYRU(lu),ncut,phast,ds->ssalb,taucpr,UMU(iu),ds->bc.umu0,UTAUPR(lu),ds->bc.fbeam);
           ussp          = c_single_scat(dither,LAYRU(lu),ncut,phasm,oprim,    taucpr,UMU(iu),ds->bc.umu0,UTAUPR(lu),ds->bc.fbeam);
           UU(iu,lu,jp) += ussndm-ussp;
+#ifndef __CUDA_ARCH__
+          if (getenv("PYDISORT_TRACE_INTENSITY_CORRECTION") != NULL) {
+            fprintf(stderr,
+                    "PYDISORT_TRACE_CORRECTION_SINGLE phi=%d level=%d angle=%d value=%.17g\n",
+                    jp, lu, iu, ussndm-ussp);
+          }
+#endif
         }
       }
       if (UMU(iu) < 0. && fabs(theta0-thetap) <= dtheta) {
@@ -253,6 +260,13 @@ DISPATCH_MACRO inline void c_intensity_correction(disort_state  *ds,
           if(!lyrcut || LAYRU(lu) < ncut) {
             duims         = c_secondary_scat(ds,iu,lu,ctheta,flyr,LAYRU(lu),tauc);
 	    UU(iu,lu,jp) -= duims;
+#ifndef __CUDA_ARCH__
+            if (getenv("PYDISORT_TRACE_INTENSITY_CORRECTION") != NULL) {
+              fprintf(stderr,
+                      "PYDISORT_TRACE_CORRECTION_IMS phi=%d level=%d angle=%d value=%.17g\n",
+                      jp, lu, iu, -duims);
+            }
+#endif
           }
         }
       } 

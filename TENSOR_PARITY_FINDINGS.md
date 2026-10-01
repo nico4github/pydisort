@@ -270,3 +270,11 @@ deferred.
 - The TP4c diagnostic also retains the published 0/90/180-degree outputs but
   now adds 12/36/80/100 degrees. These nontrivial angles are mandatory for
   every future azimuth-dependent fixture and diagnostic.
+
+## IMS stress diagnostic (2026-10-01)
+
+`PYDISORT_TP4_IMS_STRESS=1` switches the separate azimuth diagnostic to a
+one-layer, `g=0.95`, `ssalb=0.99` Henyey--Greenstein atmosphere while retaining
+its seven azimuths and solar-aureole rays. The retained native IMS trace has a
+maximum magnitude of `3.5138445831754757`, so it is the primary IMS parity
+gate; published TP4c remains the end-to-end correction gate.
