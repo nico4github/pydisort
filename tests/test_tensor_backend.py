@@ -1483,6 +1483,7 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
         "tensor_user_ray_two_layer_reference.json",
         "tensor_user_ray_five_layer_reference.json",
         "tensor_user_ray_beam_five_layer_reference.json",
+        "tensor_user_ray_thermal_five_layer_reference.json",
     ],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -1491,13 +1492,16 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         build_reduced_eigen_matrix,
         build_tp9_beam_source,
         build_tp9_boundary_system,
+        build_tp9_thermal_source,
         extract_tp9_user_intensity_m0,
         gaussian_quadrature,
         interpolate_tp9_eigenvectors_m0,
         interpolate_tp9_user_beam_source_m0,
+        interpolate_tp9_user_thermal_source_m0,
         prepare_atmosphere,
         prepare_layer_optics,
         prepare_output_grid,
+        prepare_thermal_coefficients,
         solve_reduced_eigenproblem,
         solve_tp9_boundary_system,
     )
@@ -1548,6 +1552,10 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
     values, vectors = solve_reduced_eigenproblem(
         build_reduced_eigen_matrix(optics, quadrature, nstr=4)
     )
+    user_mu = torch.tensor(
+        fixture["user_mu"], dtype=torch.float64, device=device
+    )
+    user_thermal0 = user_thermal1 = None
     if "fbeam" in fixture:
         umu0 = torch.full(
             (1, 1), fixture["umu0"], dtype=torch.float64, device=device
@@ -1579,12 +1587,42 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
     else:
         umu0 = None
         beam_source = None
-        constants = solve_tp9_boundary_system(
-            build_tp9_boundary_system(vectors, values, optics, fisot)
-        )
-    user_mu = torch.tensor(
-        fixture["user_mu"], dtype=torch.float64, device=device
-    )
+        if "temperature" in fixture:
+            temperature = torch.tensor(
+                fixture["temperature"], dtype=torch.float64, device=device
+            ).view(1, 1, -1)
+            lower = torch.tensor(
+                fixture["wavenumber_lower"], dtype=torch.float64, device=device
+            )
+            upper = torch.tensor(
+                fixture["wavenumber_upper"], dtype=torch.float64, device=device
+            )
+            xr0, xr1 = prepare_thermal_coefficients(
+                temperature, optics, lower, upper
+            )
+            thermal0, thermal1 = build_tp9_thermal_source(
+                optics, quadrature, xr0, xr1, nstr=4
+            )
+            constants = solve_tp9_boundary_system(
+                build_tp9_boundary_system(
+                    vectors,
+                    values,
+                    optics,
+                    fisot,
+                    thermal0=thermal0,
+                    thermal1=thermal1,
+                )
+            )
+            (
+                user_thermal0,
+                user_thermal1,
+            ) = interpolate_tp9_user_thermal_source_m0(
+                thermal0, thermal1, optics, quadrature, user_mu, xr0, xr1
+            )
+        else:
+            constants = solve_tp9_boundary_system(
+                build_tp9_boundary_system(vectors, values, optics, fisot)
+            )
     actual = extract_tp9_user_intensity_m0(
         interpolate_tp9_eigenvectors_m0(vectors, optics, quadrature, user_mu),
         values,
@@ -1599,6 +1637,8 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
             beam_source, optics, quadrature, user_mu, umu0, fbeam
         ),
         umu0,
+        user_thermal0,
+        user_thermal1,
     )
     expected = torch.tensor(
         fixture["radiance"], dtype=torch.float64, device=device

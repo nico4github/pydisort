@@ -787,6 +787,51 @@ def interpolate_tp9_user_beam_source_m0(
     return torch.einsum("lu,...l->...u", ylm_user, psi + direct)
 
 
+@timed(name="tensor_backend.interpolate_tp9_user_thermal_source_m0")
+def interpolate_tp9_user_thermal_source_m0(
+    thermal0: torch.Tensor,
+    thermal1: torch.Tensor,
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    user_mu: torch.Tensor,
+    xr0: torch.Tensor,
+    xr1: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Project C-DISORT m=0 thermal particular solutions onto user angles."""
+    nstr = quadrature.cmu.numel()
+    nn = nstr // 2
+    degree = torch.arange(nstr, dtype=user_mu.dtype, device=user_mu.device)
+    ylm_user = user_mu.unsqueeze(0).pow(degree.unsqueeze(-1))
+    ylm_quadrature = quadrature.cmu.unsqueeze(0).pow(degree.unsqueeze(-1))
+    ylm_user[0] = 1.0
+    ylm_quadrature[0] = 1.0
+    if nstr > 1:
+        ylm_user[1] = user_mu
+        ylm_quadrature[1] = quadrature.cmu
+    for order in range(2, nstr):
+        ylm_user[order] = (
+            (2 * order - 1) * user_mu * ylm_user[order - 1]
+            - (order - 1) * ylm_user[order - 2]
+        ) / order
+        ylm_quadrature[order] = (
+            (2 * order - 1) * quadrature.cmu * ylm_quadrature[order - 1]
+            - (order - 1) * ylm_quadrature[order - 2]
+        ) / order
+
+    def project(source: torch.Tensor, linear: torch.Tensor) -> torch.Tensor:
+        c_source = torch.cat(
+            (source[..., nn:], source[..., :nn].flip(dims=(-1,))), dim=-1
+        )
+        projected = torch.einsum(
+            "...j,lj,j->...l", c_source, ylm_quadrature, quadrature.cwt
+        )
+        return torch.einsum(
+            "lu,...l->...u", ylm_user, 0.5 * optics.gl * projected
+        ) + (1.0 - optics.oprim).unsqueeze(-1) * linear.unsqueeze(-1)
+
+    return project(thermal0, xr0), project(thermal1, xr1)
+
+
 @timed(name="tensor_backend.extract_tp9_user_intensity_m0")
 def extract_tp9_user_intensity_m0(
     user_eigenvectors: torch.Tensor,
@@ -798,6 +843,8 @@ def extract_tp9_user_intensity_m0(
     fisot: torch.Tensor,
     user_beam_source: torch.Tensor | None = None,
     umu0: torch.Tensor | None = None,
+    user_thermal0: torch.Tensor | None = None,
+    user_thermal1: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """C-DISORT source-free m=0 user rays, including all crossed layers."""
     nstr = user_eigenvectors.shape[-1]
@@ -812,6 +859,10 @@ def extract_tp9_user_intensity_m0(
         user_mu.numel(),
     ):
         raise ValueError("user_beam_source is incompatible with user angles")
+    if (user_thermal0 is None) != (user_thermal1 is None):
+        raise ValueError(
+            "user_thermal0 and user_thermal1 must be supplied together"
+        )
     constants = constants.reshape(*constants.shape[:-1], nlyr, nstr)
     kk = torch.cat((-eigenvalues.flip(-1), eigenvalues), dim=-1)
     starts = torch.cat(
@@ -986,6 +1037,36 @@ def extract_tp9_user_intensity_m0(
                         partial_valid,
                         partial_beam,
                         torch.zeros_like(partial_beam),
+                    )
+                if user_thermal0 is not None and user_thermal1 is not None:
+                    sign = -1.0 if mu < 0 else 1.0
+                    exp1 = torch.exp((tau - begin) / mu)
+                    exp2 = torch.exp((tau - end) / mu)
+                    full0 = sign * (exp1 - exp2)
+                    full1 = sign * ((begin + mu) * exp1 - (end + mu) * exp2)
+                    crosses = lc < target if mu < 0 else lc > target
+                    full_thermal = (
+                        user_thermal0[..., lc, iu] * full0
+                        + user_thermal1[..., lc, iu] * full1
+                    )
+                    value += torch.where(
+                        crosses, full_thermal, torch.zeros_like(full_thermal)
+                    )
+                    partial_exp = exp1 if mu < 0 else exp2
+                    partial_fact = begin + mu if mu < 0 else end + mu
+                    partial0 = 1.0 - partial_exp
+                    partial1 = tau + mu - partial_fact * partial_exp
+                    partial_thermal = (
+                        user_thermal0[..., lc, iu] * partial0
+                        + user_thermal1[..., lc, iu] * partial1
+                    )
+                    partial_valid = (target == lc) & (
+                        dtau1 > 1e-6 if mu < 0 else dtau1 < dtau - 1e-6
+                    )
+                    value += torch.where(
+                        partial_valid,
+                        partial_thermal,
+                        torch.zeros_like(partial_thermal),
                     )
             if mu < 0:
                 value += fisot * torch.exp(tau / mu)

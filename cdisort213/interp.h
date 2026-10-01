@@ -240,6 +240,17 @@ DISPATCH_MACRO inline void c_interp_source(disort_state   *ds,
       Z0U(iu,lc) = sum0+(1.-OPRIM(lc))*XR0(lc);
       Z1U(iu,lc) = sum1+(1.-OPRIM(lc))*XR1(lc);
     }
+#ifndef __CUDA_ARCH__
+    if (mazim == 0 && getenv("PYDISORT_TRACE_USER_SOURCE") != NULL) {
+      fprintf(stderr, "PYDISORT_TRACE_USER_THERMAL layer=%d z0", lc);
+      for (iu = 1; iu <= ds->numu; iu++)
+        fprintf(stderr, " %.17g", Z0U(iu,lc));
+      fprintf(stderr, " z1");
+      for (iu = 1; iu <= ds->numu; iu++)
+        fprintf(stderr, " %.17g", Z1U(iu,lc));
+      fprintf(stderr, "\n");
+    }
+#endif
   }
 
   return;
@@ -437,4 +448,3 @@ DISPATCH_MACRO inline void c_set_coefficients_beam_source(disort_state *ds,
   return;
 }
 /*============================= end c_set_coefficients_beam_source() ====*/
-
