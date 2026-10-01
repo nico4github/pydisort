@@ -237,6 +237,63 @@ def test_nakajima_tanaka_correction_adds_both_native_terms():
     assert torch.allclose(actual, torch.full_like(radiance, 1.15))
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_nakajima_tanaka_ims_matches_native_stress_trace(device):
+    from pydisort.tensor_backend import (
+        nakajima_tanaka_ims,
+        prepare_atmosphere,
+        prepare_layer_optics,
+    )
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_ims_stress_reference.json"
+        ).read_text()
+    )
+    prop = torch.zeros((1, 1, 1, 34), dtype=torch.float64, device=device)
+    prop[..., 0] = 1.0
+    prop[..., 1] = 0.99
+    asymmetry = 0.95
+    prop[..., 2:] = torch.tensor(
+        [asymmetry**degree for degree in range(1, 33)],
+        dtype=torch.float64,
+        device=device,
+    )
+    atmosphere = prepare_atmosphere(prop, nstr=32, nmom=32)
+    optics = prepare_layer_optics(atmosphere, nstr=32, deltam=True)
+    phi = torch.tensor(
+        [0.0, 12.0, 36.0, 80.0, 90.0, 100.0, 180.0],
+        dtype=torch.float64,
+        device=device,
+    )
+    user_mu = torch.tensor(
+        [-1.0, -0.5, -0.1, 0.1, 0.5, 1.0], dtype=torch.float64, device=device
+    )
+    umu0 = torch.full((1, 1), 0.5, dtype=torch.float64, device=device)
+    cosine = -umu0[..., None, None] * user_mu + torch.sqrt(
+        1 - umu0[..., None, None].square()
+    ) * torch.sqrt(1 - user_mu.square()) * torch.cos(
+        phi[None, None, :, None] * torch.pi / 180
+    )
+    actual = nakajima_tanaka_ims(
+        atmosphere,
+        optics,
+        torch.tensor([0.0, 0.5, 1.0], dtype=torch.float64, device=device),
+        user_mu,
+        cosine,
+        umu0,
+        torch.full((1, 1), torch.pi, dtype=torch.float64, device=device),
+        nstr=32,
+    )
+    expected = torch.zeros_like(actual)
+    expected[..., 1:, 1] = torch.tensor(
+        fixture["ims_values"], dtype=torch.float64, device=device
+    ).reshape(7, 2)
+    assert torch.allclose(actual, expected, rtol=2e-6, atol=5e-6)
+
+
 def test_reduced_eigensolve_is_batched_and_real():
     from pydisort.tensor_backend import solve_reduced_eigenproblem
 
