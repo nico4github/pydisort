@@ -50,6 +50,14 @@ nontrivial azimuth. Retain published angles where applicable, and add values
 such as 12, 36, 80, or 100 degrees; 0, 90, and 180 degrees alone are not
 sufficient evidence for Fourier reconstruction.
 
+Apply the same rule to every angular dimension. User-ray radiance coverage
+must include both `(-0.5, 0.5)` and the asymmetric `(-0.3, 0.4)` pair; a
+beam case must use an oblique incidence cosine strictly between zero and one;
+and azimuthal radiance must include a nontrivial angle. Preserve published
+angles as immutable baselines and add a clearly named companion diagnostic or
+fixture when additional coverage is needed. Add or update the pytest angle
+coverage guard with each new radiance fixture.
+
 Reference tests and their published inputs are immutable baselines. Never
 modify a reference test case for debugging, tracing, benchmarking, or a new
 parity scenario. Add a separate, clearly named diagnostic or regression test
