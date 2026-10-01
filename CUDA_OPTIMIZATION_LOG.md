@@ -113,3 +113,12 @@ once matrix and factorization workspace are included. The next optimization
 must retain the existing parity gates while using the existing block-banded
 structure and bounded channel chunks; transfer caching is explicitly not the
 bottleneck and will not be retried.
+
+A matching five-run CPU baseline for one channel is 0.0468--0.0835 s
+(median 0.0479 s), versus the warmed H100 event time of 0.1008 s. The tensor
+implementation is therefore currently about 2.1x slower on H100 for this
+single 100-layer column. This reinforces that the next experiment is an
+algorithm/layout change, not transfer tuning or a device-selection change.
+The reduced matrix is not symmetric (measured maximum antisymmetric entry
+107.55), so a substitution of `torch.linalg.eigh` for the required general
+eigensolve is rejected on correctness grounds.
