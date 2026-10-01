@@ -269,3 +269,21 @@ for a completed validated calculation, ``SKIP`` only for a documented
 unsupported capability with its reason, and ``FAIL`` for an error or numerical
 check failure in a declared supported calculation. Summaries must count each
 outcome separately.
+
+Intensity correction (TP4c)
+--------------------------
+
+Fortran DISORT's ``CORINT`` path calls the original Nakajima--Tanaka
+correction after Fourier radiance reconstruction. C-DISORT 2.1.3 provides the
+same path as ``c_intensity_correction`` when both ``intensity_correction`` and
+``old_intensity_correction`` are set. It adds exact-minus-delta-M single
+scattering at every user direction and azimuth, then applies the IMS
+secondary-scattering adjustment only in the solar aureole.
+
+The tensor backend currently supports the uncorrected, device-resident Fourier
+transport. The TP4c trace driver records raw ``UUM`` terms and final corrected
+``UU`` at 0, 12, 36, 80, 90, 100, and 180 degrees. Tensor correction status is
+**unsupported while being ported**: no tensor API claims TP4c final-radiance
+parity until the single-scattering and IMS terms each have CPU/H100 fixture
+gates. The immutable published TP4c source remains unchanged; the separate
+``test_cdisort_tp4_azimuth`` diagnostic is the C-DISORT comparison basis.
