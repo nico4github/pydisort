@@ -1949,3 +1949,43 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         fixture["radiance"], dtype=torch.float64, device=device
     )
     assert torch.allclose(actual[0, 0], expected, atol=2e-8, rtol=1e-8)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tp9_azimuthal_reconstruction_matches_native_trace(device):
+    """Reconstruct C-DISORT's final phi=60-degree radiance from UUM terms."""
+    from pydisort.tensor_backend import reconstruct_tp9_azimuthal_radiance
+
+    component_fixture = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_user_ray_beam_five_layer_fourier_reference.json"
+        ).read_text()
+    )
+    reference = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "tensor_user_ray_beam_five_layer_azimuth_reference.json"
+        ).read_text()
+    )
+    components = torch.tensor(
+        component_fixture["fourier_components"],
+        dtype=torch.float64,
+        device=device,
+    ).reshape(1, 1, 4, 6, 4)
+    actual = reconstruct_tp9_azimuthal_radiance(
+        components,
+        torch.full(
+            (1, 1),
+            reference["phi_degrees"],
+            dtype=torch.float64,
+            device=device,
+        ),
+        phi0_degrees=reference["phi0_degrees"],
+    )
+    expected = torch.tensor(
+        reference["radiance"], dtype=torch.float64, device=device
+    )
+    assert torch.allclose(actual[0, 0], expected, rtol=0.0, atol=2e-16)

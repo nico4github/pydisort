@@ -753,6 +753,48 @@ def top_boundary_user_intensity(
     return result
 
 
+@timed(name="tensor_backend.reconstruct_tp9_azimuthal_radiance")
+def reconstruct_tp9_azimuthal_radiance(
+    components: torch.Tensor,
+    phi_degrees: torch.Tensor,
+    *,
+    phi0_degrees: torch.Tensor | float = 0.0,
+) -> torch.Tensor:
+    """Sum native-order Fourier radiance components at user azimuths.
+
+    ``components`` has shape ``(*batch, nfourier, ntau, numu)`` and stores
+    C-DISORT's already normalized ``UUM`` terms.  C-DISORT reconstructs the
+    final radiance with ``cos(m * (phi - phi0))`` in degrees, without an
+    additional factor for nonzero orders.
+    """
+    if components.ndim < 3:
+        raise ValueError(
+            "components must include Fourier, depth, and angle axes"
+        )
+    batch_shape = components.shape[:-3]
+    if (
+        phi_degrees.dtype != components.dtype
+        or phi_degrees.device != components.device
+    ):
+        raise ValueError("phi_degrees must share component dtype and device")
+    try:
+        phi = torch.broadcast_to(phi_degrees, batch_shape)
+        phi0 = torch.as_tensor(
+            phi0_degrees, dtype=components.dtype, device=components.device
+        )
+        phi0 = torch.broadcast_to(phi0, batch_shape)
+    except RuntimeError as error:
+        raise ValueError(
+            "azimuths must broadcast to component batches"
+        ) from error
+    order = torch.arange(
+        components.shape[-3], dtype=components.dtype, device=components.device
+    )
+    radians = torch.pi / 180.0 * (phi - phi0).unsqueeze(-1) * order
+    weights = torch.cos(radians).unsqueeze(-1).unsqueeze(-1)
+    return torch.sum(components * weights, dim=-3)
+
+
 @timed(name="tensor_backend.extract_tp9_user_intensity_one_layer_m0")
 def extract_tp9_user_intensity_one_layer_m0(
     user_eigenvectors: torch.Tensor,
