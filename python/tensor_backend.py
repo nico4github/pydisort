@@ -280,6 +280,65 @@ def nakajima_tanaka_phase(
     return torch.einsum("...l,...l,l->...", pmom, legendre, weights)
 
 
+@timed(name="tensor_backend.nakajima_tanaka_single_scatter")
+def nakajima_tanaka_single_scatter(
+    phase: torch.Tensor,
+    omega: torch.Tensor,
+    tau: torch.Tensor,
+    user_tau: torch.Tensor,
+    user_mu: torch.Tensor,
+    umu0: torch.Tensor,
+    fbeam: torch.Tensor,
+) -> torch.Tensor:
+    """Vectorize C-DISORT ``c_single_scat`` for layerwise phase values."""
+    if phase.shape != omega.shape or phase.shape != tau.shape:
+        raise ValueError("phase, omega, and tau must share layer shape")
+    batch = phase.shape[:-1]
+    if umu0.shape != batch or fbeam.shape != batch:
+        raise ValueError("beam inputs must share the phase batch shape")
+    starts = torch.cat((torch.zeros_like(tau[..., :1]), tau[..., :-1]), dim=-1)
+    result = torch.zeros(
+        (*batch, user_tau.numel(), user_mu.numel()),
+        dtype=phase.dtype,
+        device=phase.device,
+    )
+    for level, depth in enumerate(user_tau):
+        target = torch.searchsorted(tau, depth, right=False).clamp(
+            max=tau.shape[-1] - 1
+        )
+        for angle, mu in enumerate(user_mu):
+            exp0 = torch.exp(-depth / umu0)
+            if torch.abs(mu + umu0).max() <= 1e-12:
+                thickness = torch.minimum(
+                    torch.clamp_min(depth - starts, 0.0), tau - starts
+                )
+                value = torch.sum(omega * phase * thickness, dim=-1)
+                result[..., level, angle] = (
+                    fbeam / (4.0 * torch.pi * umu0) * exp0 * value
+                )
+                continue
+            value = torch.zeros_like(exp0)
+            indices = (
+                range(tau.shape[-1])
+                if mu > 0
+                else range(tau.shape[-1] - 1, -1, -1)
+            )
+            for index in indices:
+                active = index >= target if mu > 0 else index <= target
+                edge = tau[..., index] if mu > 0 else starts[..., index]
+                exp1 = torch.exp(-((edge - depth) / mu + edge / umu0))
+                value += torch.where(
+                    active,
+                    omega[..., index] * phase[..., index] * (exp0 - exp1),
+                    torch.zeros_like(value),
+                )
+                exp0 = torch.where(active, exp1, exp0)
+            result[..., level, angle] = (
+                value * fbeam / (4.0 * torch.pi * (1.0 + mu / umu0))
+            )
+    return result
+
+
 @timed(name="tensor_backend.gaussian_quadrature")
 def gaussian_quadrature(
     nstr: int, *, device: torch.device | str
