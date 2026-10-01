@@ -51,6 +51,7 @@ void run_disort_user_ray(void) {
   const int thermal = getenv("PYDISORT_USER_RAY_THERMAL") != NULL;
   const int general_source = getenv("PYDISORT_USER_RAY_GENERAL_SOURCE") != NULL;
   const int lambertian = getenv("PYDISORT_USER_RAY_LAMBERTIAN") != NULL;
+  const int fourier = getenv("PYDISORT_USER_RAY_FOURIER") != NULL;
   const int nlyr = five_layer ? 5 : 2;
   const double ssalb = 0.;
    int icas, lc, k;
@@ -75,7 +76,7 @@ void run_disort_user_ray(void) {
   ds.flag.quiet = TRUE;
   ds.flag.spher = FALSE;
   ds.flag.general_source = general_source ? TRUE : FALSE;
-  ds.flag.output_uum = FALSE;
+  ds.flag.output_uum = fourier ? TRUE : FALSE;
   ds.flag.intensity_correction = FALSE;
   ds.flag.old_intensity_correction = FALSE;
 
@@ -165,6 +166,16 @@ void run_disort_user_ray(void) {
         break;
     } /* Execute DISORT with Planck emission function */
     c_disort(&ds, &out, c_planck_func2);
+    if (fourier) {
+      for (k = 0; k < ds.nstr; ++k) {
+        fprintf(stderr, "PYDISORT_TRACE_FOURIER order=%d", k);
+        for (lc = 1; lc <= ds.ntau; ++lc)
+          for (int iu = 1; iu <= ds.numu; ++iu)
+            fprintf(stderr, " %.17g",
+                    out.uum[(iu - 1) + (lc - 1 + k * ds.ntau) * ds.numu]);
+        fprintf(stderr, "\n");
+      }
+    }
 
     /* Clean up */
     c_disort_out_free(&ds, &good);
