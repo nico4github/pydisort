@@ -832,6 +832,47 @@ def interpolate_tp9_user_thermal_source_m0(
     return project(thermal0, xr0), project(thermal1, xr1)
 
 
+@timed(name="tensor_backend.interpolate_tp9_user_general_source_m0")
+def interpolate_tp9_user_general_source_m0(
+    general_source: torch.Tensor,
+    optics: TensorLayerOptics,
+    quadrature: TensorQuadrature,
+    user_mu: torch.Tensor,
+    user_source: torch.Tensor,
+) -> torch.Tensor:
+    """Project C-DISORT's Fourier-zero general source to user angles."""
+    nstr = quadrature.cmu.numel()
+    nn = nstr // 2
+    degree = torch.arange(nstr, dtype=user_mu.dtype, device=user_mu.device)
+    ylm_user = user_mu.unsqueeze(0).pow(degree.unsqueeze(-1))
+    ylm_quadrature = quadrature.cmu.unsqueeze(0).pow(degree.unsqueeze(-1))
+    ylm_user[0] = 1.0
+    ylm_quadrature[0] = 1.0
+    if nstr > 1:
+        ylm_user[1] = user_mu
+        ylm_quadrature[1] = quadrature.cmu
+    for order in range(2, nstr):
+        ylm_user[order] = (
+            (2 * order - 1) * user_mu * ylm_user[order - 1]
+            - (order - 1) * ylm_user[order - 2]
+        ) / order
+        ylm_quadrature[order] = (
+            (2 * order - 1) * quadrature.cmu * ylm_quadrature[order - 1]
+            - (order - 1) * ylm_quadrature[order - 2]
+        ) / order
+    c_source = torch.cat(
+        (general_source[..., nn:], general_source[..., :nn].flip(dims=(-1,))),
+        dim=-1,
+    )
+    projected = torch.einsum(
+        "...j,lj,j->...l", c_source, ylm_quadrature, quadrature.cwt
+    )
+    interpolated = torch.einsum(
+        "lu,...l->...u", ylm_user, 0.5 * optics.gl * projected
+    )
+    return interpolated + user_source
+
+
 @timed(name="tensor_backend.extract_tp9_user_intensity_m0")
 def extract_tp9_user_intensity_m0(
     user_eigenvectors: torch.Tensor,
@@ -845,6 +886,7 @@ def extract_tp9_user_intensity_m0(
     umu0: torch.Tensor | None = None,
     user_thermal0: torch.Tensor | None = None,
     user_thermal1: torch.Tensor | None = None,
+    user_general_source: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """C-DISORT source-free m=0 user rays, including all crossed layers."""
     nstr = user_eigenvectors.shape[-1]
@@ -1067,6 +1109,29 @@ def extract_tp9_user_intensity_m0(
                         partial_valid,
                         partial_thermal,
                         torch.zeros_like(partial_thermal),
+                    )
+                if user_general_source is not None:
+                    sign = -1.0 if mu < 0 else 1.0
+                    exp1 = torch.exp((tau - begin) / mu)
+                    exp2 = torch.exp((tau - end) / mu)
+                    full_general = (
+                        user_general_source[..., lc, iu] * sign * (exp1 - exp2)
+                    )
+                    crosses = lc < target if mu < 0 else lc > target
+                    value += torch.where(
+                        crosses, full_general, torch.zeros_like(full_general)
+                    )
+                    partial_exp = exp1 if mu < 0 else exp2
+                    partial_general = user_general_source[..., lc, iu] * (
+                        1.0 - partial_exp
+                    )
+                    partial_valid = (target == lc) & (
+                        dtau1 > 1e-6 if mu < 0 else dtau1 < dtau - 1e-6
+                    )
+                    value += torch.where(
+                        partial_valid,
+                        partial_general,
+                        torch.zeros_like(partial_general),
                     )
             if mu < 0:
                 value += fisot * torch.exp(tau / mu)

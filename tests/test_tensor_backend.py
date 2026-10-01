@@ -1484,6 +1484,7 @@ def test_tensor_one_layer_user_ray_matches_cdisort(device):
         "tensor_user_ray_five_layer_reference.json",
         "tensor_user_ray_beam_five_layer_reference.json",
         "tensor_user_ray_thermal_five_layer_reference.json",
+        "tensor_user_ray_general_source_five_layer_reference.json",
     ],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -1492,11 +1493,13 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         build_reduced_eigen_matrix,
         build_tp9_beam_source,
         build_tp9_boundary_system,
+        build_tp9_general_source,
         build_tp9_thermal_source,
         extract_tp9_user_intensity_m0,
         gaussian_quadrature,
         interpolate_tp9_eigenvectors_m0,
         interpolate_tp9_user_beam_source_m0,
+        interpolate_tp9_user_general_source_m0,
         interpolate_tp9_user_thermal_source_m0,
         prepare_atmosphere,
         prepare_layer_optics,
@@ -1555,7 +1558,7 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
     user_mu = torch.tensor(
         fixture["user_mu"], dtype=torch.float64, device=device
     )
-    user_thermal0 = user_thermal1 = None
+    user_thermal0 = user_thermal1 = user_general_source = None
     if "fbeam" in fixture:
         umu0 = torch.full(
             (1, 1), fixture["umu0"], dtype=torch.float64, device=device
@@ -1619,6 +1622,38 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
             ) = interpolate_tp9_user_thermal_source_m0(
                 thermal0, thermal1, optics, quadrature, user_mu, xr0, xr1
             )
+        elif "computational_source" in fixture:
+            computational = torch.zeros(
+                (1, 1, 4, nlyr, 4), dtype=torch.float64, device=device
+            )
+            user_source = torch.zeros(
+                (1, 1, nlyr, user_mu.numel()),
+                dtype=torch.float64,
+                device=device,
+            )
+            for layer in range(nlyr):
+                for angle in range(4):
+                    computational[0, 0, 0, layer, angle] = (
+                        0.01 * (layer + 1) * (angle + 1)
+                    )
+                    user_source[0, 0, layer, angle] = (
+                        0.02 * (layer + 1) * (angle + 1)
+                    )
+            general_source = build_tp9_general_source(
+                optics, quadrature, computational, nstr=4
+            )
+            constants = solve_tp9_boundary_system(
+                build_tp9_boundary_system(
+                    vectors,
+                    values,
+                    optics,
+                    fisot,
+                    general_source=general_source,
+                )
+            )
+            user_general_source = interpolate_tp9_user_general_source_m0(
+                general_source, optics, quadrature, user_mu, user_source
+            )
         else:
             constants = solve_tp9_boundary_system(
                 build_tp9_boundary_system(vectors, values, optics, fisot)
@@ -1639,6 +1674,7 @@ def test_tensor_multilayer_user_ray_matches_cdisort(device, fixture_name):
         umu0,
         user_thermal0,
         user_thermal1,
+        user_general_source,
     )
     expected = torch.tensor(
         fixture["radiance"], dtype=torch.float64, device=device
