@@ -3,9 +3,6 @@ from importlib.metadata import PackageNotFoundError, version
 import torch  # noqa: F401
 
 from .pydisort import *
-from .timing import TimingCollector as TimingCollector
-from .timing import TimingRecord as TimingRecord
-from .timing import timed as timed
 
 try:
     __version__ = version("pydisort")
