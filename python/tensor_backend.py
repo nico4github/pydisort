@@ -369,6 +369,52 @@ def nakajima_tanaka_single_scatter(
     return result
 
 
+@timed(name="tensor_backend.nakajima_tanaka_single_scatter_correction")
+def nakajima_tanaka_single_scatter_correction(
+    exact_phase: torch.Tensor,
+    scaled_phase: torch.Tensor,
+    atmosphere: TensorAtmosphere,
+    optics: TensorLayerOptics,
+    user_tau: torch.Tensor,
+    user_mu: torch.Tensor,
+    umu0: torch.Tensor,
+    fbeam: torch.Tensor,
+) -> torch.Tensor:
+    """Return C-DISORT's exact-minus-delta-M single-scattering correction."""
+    if exact_phase.shape != scaled_phase.shape:
+        raise ValueError("exact and scaled phase arrays must share a shape")
+    if exact_phase.shape[:-3] != atmosphere.dtauc.shape[:-1]:
+        raise ValueError("phase arrays are incompatible with the atmosphere")
+    nphi, numu = exact_phase.shape[-2:]
+    result = torch.empty(
+        (*atmosphere.dtauc.shape[:2], nphi, user_tau.numel(), numu),
+        dtype=exact_phase.dtype,
+        device=exact_phase.device,
+    )
+    for phi in range(nphi):
+        for angle in range(numu):
+            exact = nakajima_tanaka_single_scatter(
+                exact_phase[..., phi, angle],
+                atmosphere.ssalb,
+                optics.taucpr,
+                user_tau,
+                user_mu[angle : angle + 1],
+                umu0,
+                fbeam,
+            )
+            scaled = nakajima_tanaka_single_scatter(
+                scaled_phase[..., phi, angle],
+                optics.oprim,
+                optics.taucpr,
+                user_tau,
+                user_mu[angle : angle + 1],
+                umu0,
+                fbeam,
+            )
+            result[..., phi, :, angle] = (exact - scaled).squeeze(-1)
+    return result
+
+
 @timed(name="tensor_backend.gaussian_quadrature")
 def gaussian_quadrature(
     nstr: int, *, device: torch.device | str
