@@ -28,11 +28,13 @@ Apple Silicon support currently means native CPU wheels and CPU batching.
 
 ## Parity work
 
-Read `TENSOR_RADIANCE_PLAN.md` and `TENSOR_PARITY_FINDINGS.md` before
-continuing tensor reconstruction work. Update the plan with the active
-milestone and acceptance boundary, and update the findings with accepted
-results, rejected hypotheses, measured gaps, and the next evidence-based
-investigation step in the same commit as the related parity change.
+The pure-PyTorch port now lives exclusively in `../torchdisort`. Read its
+`PLAN.md` for generic solver scope, current milestones and full-suite acceptance,
+and `../torchdisort/docs/TENSOR_PARITY_FINDINGS.md` for tensor evidence. Update
+those records with accepted results, rejected hypotheses, measured gaps and
+the next investigation in the related parity commit. This repository retains
+the patched native baseline and opt-in traces; do not duplicate tensor solver
+code here or treat native capability counts as torchdisort coverage.
 
 For source-free m=0 user-angle radiance, establish the nonuniform two-layer
 C-DISORT fixture first. After it passes on CPU and CUDA, add and pass a
@@ -203,7 +205,7 @@ increments without interrupting execution.
 Do a bounded source-level audit first. If a C-DISORT/tensor parity divergence
 remains unresolved after that audit, add a narrowly scoped, opt-in CPU trace to
 the relevant C stage before making further speculative changes. Record the
-trace in `cdisort_patches/`, document it in `../torchdisort/TENSOR_PARITY_FINDINGS.md`, and
+trace in `cdisort_patches/`, document it in `../torchdisort/docs/TENSOR_PARITY_FINDINGS.md`, and
 prepare all trace points before one rebuild. Compare the traced C intermediate
 values with the tensor stage. Retain the opt-in diagnostic and its patch after
 the investigation: it is dormant outside its environment variable and avoids

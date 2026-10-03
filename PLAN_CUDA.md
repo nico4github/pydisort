@@ -1,5 +1,11 @@
 # CUDA benchmark and optimization plan
 
+**Scope: historical/native C-DISORT CUDA backend.** The active pure
+Python/PyTorch solver and whole-chain optimization plan live in
+[torchdisort/PLAN.md](../torchdisort/PLAN.md#optimization-status-and-next-steps).
+This retained document describes the external native comparison baseline;
+it does not define torchdisort's runtime or current work queue.
+
 This plan defines the performance work for the H100 after numerical parity is
 established. It complements [`PLAN.md`](PLAN.md): that file orders missing
 DISORT capabilities; this file defines how supported CPU and CUDA paths are

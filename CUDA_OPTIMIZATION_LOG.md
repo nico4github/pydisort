@@ -1,5 +1,11 @@
 # CUDA optimization log
 
+**Scope: native C-DISORT performance history.** The pure Python/PyTorch port's
+active work is in [torchdisort/PLAN.md](../torchdisort/PLAN.md#optimization-status-and-next-steps),
+with accepted tensor increments in
+[its iteration log](../torchdisort/docs/PERFORMANCE_ITERATIONS.md).
+Native experiments below remain evidence for the comparison baseline.
+
 This log records completed CUDA performance experiments. `PLAN_CUDA.md` defines
 future work; this file records evidence, validation, and the retain/reject
 decision for each attempt.
@@ -27,7 +33,7 @@ two resident warps per H100 SM. The current production report is at
 `../disort-pyf/benchmarks/PLATO-Ganymede/testproblem09_production_summary.txt`:
 CPU remains faster than CUDA for both 1,024-channel workloads.
 
-## Next investigation
+## Native investigation proposed at this historical checkpoint
 
 Nsight Systems shows the C-DISORT element kernel dominates device time. Further
 work must keep the full-warp pmem contract and focus on a repeatable way to

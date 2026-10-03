@@ -1,5 +1,10 @@
 # pydisort development plan
 
+This plan belongs to the patched native C-DISORT comparison backend. The
+standalone pure Python/PyTorch solver's generic capability target, active
+optimization and full reference-suite acceptance are maintained in
+[torchdisort/PLAN.md](../torchdisort/PLAN.md#generic-solver-contract).
+
 The authoritative Fortran-parity plan, current H100 validation status, and
 definition of done for each capability live in
 [`docs/source/fortran_parity.rst`](docs/source/fortran_parity.rst).
